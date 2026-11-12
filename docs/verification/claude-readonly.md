@@ -10,6 +10,7 @@ bounded diagnostic capture, not the six-stage adapter program or PC-wide support
 | Check | Result |
 | --- | --- |
 | Complete pinned engineering stack | Verifier passed for four packages and 103 skills |
+| Reconciled adapter plan | Pinned plan checker reports six sections and zero problems; execution stays held |
 | Exact SDK and package closure | SDK 11.0.100, seven direct package hashes, locked restore passed |
 | Release build and formatting | Zero warnings, zero errors, formatting verification passed |
 | MTP suite | 60 passed, none failed or skipped, including 50 Host tests |

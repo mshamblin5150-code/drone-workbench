@@ -6,13 +6,13 @@ Workbench shows what a source verifiably reports. A control also needs a support
 Codex executes the plan. The PR ids in order are CA1, CA2, CA3, CA4, CA5 and CA6.
 The [acceptance scenarios](claude-adapter-acceptance.md) define pass conditions. Execution waits for the operator's explicit go.
 
+## How to read this
+
 The separately authorized [read-only slice](https://github.com/mshamblin5150-code/drone-workbench/issues/20)
 implements bounded observation and verification only. It does not activate this
 six-stage program. The newer [Claude coverage assessment](../research/claude-coverage-readiness.md)
 supersedes the earlier interactive-session expectation. Disruptive fixture
 operations remain held for explicit, action-specific authority.
-
-## How to read this
 
 One box is one unit of work. Every box names the evidence that checks it. A nested box is a sub-step of the box above it. Check a box only when its evidence exists, a file, a log line, a screenshot, a test run, or a SHA. The body is a how-to. The appendices explain and record.
 
@@ -243,10 +243,10 @@ Each live lane runs in its own local worktree at the PR head. Cursor cloud VMs a
 
 - [ ] Lane 1. Regression lane against trunk. Run the CA2 lane 3 scenario at trunk and head. Save `ca3-regression.txt`. Pass when both parse the same entries and head also projects them.
 - [ ] Lane 2. Read real sessions through the adapter only (CV-1). Save `ca3-desktop.txt`. Pass when desktop sessions read `Desktop`, have no `ControlReference` and the capture holds no path, name or session ID.
-- [ ] Lane 3. Operator-assisted (CV-2). An idle native CLI absent from the agent view is accounted for as an unmatched process after successful process inventory, with no invented session or controls. Incomplete inventory reports unknown totals. Post-prompt session visibility is a separate model-authorized CV-2b lane and stays unverified until demonstrated. If the operator declines the idle fixture, record its live lane as unverified.
+- [ ] Lane 3. Operator-assisted (CV-2). An idle native CLI absent from the agent view is accounted for as an unmatched process after successful process inventory, with no invented session or controls. Incomplete inventory reports unknown totals. Save `ca3-interactive.png` as a sanitized fixture-summary screenshot and `ca3-interactive.txt` as text. Post-prompt session visibility is a separate model-authorized CV-2b lane and stays unverified until demonstrated. If the operator declines the idle fixture, record its live lane as unverified. Pass when absent idle work is counted only as unmatched processes and incomplete totals remain unknown.
 - [ ] Lane 4. Start background sessions in two synthetic projects (CV-3). Save `ca3-two-projects.txt`. Pass when they carry different `ProjectRef` values.
 - [ ] Lane 5. Poll during the first seconds after a start (LV-1). Save `ca3-starting.txt`. Pass when the state is `Starting`.
-- [ ] Lane 6. Held for explicit disruptive-test authorization. For a synthetic process replacement (LV-2, ID-2), preserve the session key and link the new incarnation. If sampling observes an intermediate restart gap, report it. A direct replacement between samples must not fabricate a `Restarting` transition. No supervisor or real-session process is a permitted target.
+- [ ] Lane 6. Held for explicit disruptive-test authorization. For a synthetic process replacement (LV-2, ID-2), preserve the session key and link the new incarnation. If sampling observes an intermediate restart gap, report it. A direct replacement between samples must not fabricate a `Restarting` transition. Save `ca3-respawn.png` as a sanitized fixture-summary screenshot and `ca3-respawn.txt` as text only when this lane is separately authorized. No supervisor or real-session process is a permitted target. Pass when source identity survives an incarnation change and no unobserved transition is invented.
 - [ ] Lane 7. Restart the adapter test console with synthetic sessions running (RS-1). Save `ca3-host-restart.txt`. Pass when no duplicate work appears and `SourceGeneration` increments.
 - [ ] Lane 8. Point the poller at a missing executable (CV-6). Save `ca3-unavailable.txt`. Pass when the source reads `Unavailable` and coverage names the gap.
 - [ ] Lane 9. Read the coverage report. Save `ca3-coverage.txt`. Pass when `Headless`, `Ide`, `Cloud`, WSL, elevated and other configuration roots read `Unverified` with gap reasons, and `Desktop` and `Background` read `Verified` with this run's receipt.
