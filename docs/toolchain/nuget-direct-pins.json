@@ -1,0 +1,46 @@
+{
+  "checked_date": "2026-11-12",
+  "packages": [
+    {
+      "id": "microsoft.data.sqlite",
+      "version": "11.0.0",
+      "source": "https://api.nuget.org/v3-flatcontainer/microsoft.data.sqlite/index.json",
+      "status": "Direct package downloaded and content pinned; package code not executed; dependency compatibility and complete transitive restore still unverified.",
+      "nupkg_sha512_base64": "mL2Ipz/AVpcPj/xqi3NTVcldzRs83KJ8yaunEs5zPQ6A9GwLolOg3js0SlPexkp5YsAFyyiGI4Z7czVzqfZu1g==",
+      "artifact_url": "https://api.nuget.org/v3-flatcontainer/microsoft.data.sqlite/11.0.0/microsoft.data.sqlite.11.0.0.nupkg"
+    },
+    {
+      "id": "system.commandline",
+      "version": "3.0.0",
+      "source": "https://api.nuget.org/v3-flatcontainer/system.commandline/index.json",
+      "status": "Direct package downloaded and content pinned; package code not executed; dependency compatibility and complete transitive restore still unverified.",
+      "nupkg_sha512_base64": "gzqt67DXjRr2IboF+afbeZvt+JGxTRific+JooU0ZIqro+dxYORCy/P5nSW7B3wb5chYsEv+XprE/sYVBTgTVA==",
+      "artifact_url": "https://api.nuget.org/v3-flatcontainer/system.commandline/3.0.0/system.commandline.3.0.0.nupkg"
+    },
+    {
+      "id": "xunit.v3",
+      "version": "4.0.3",
+      "source": "https://api.nuget.org/v3-flatcontainer/xunit.v3/index.json",
+      "status": "Direct package downloaded and content pinned; package code not executed; dependency compatibility and complete transitive restore still unverified.",
+      "nupkg_sha512_base64": "cpENjBNI1hIrTJrDc4GKx8598a7T1XgHf8A91TOESj7RCSnqyuycLhDYhKedCKudeuYHS8pZVPrqQRNmK0WYAw==",
+      "artifact_url": "https://api.nuget.org/v3-flatcontainer/xunit.v3/4.0.3/xunit.v3.4.0.3.nupkg"
+    },
+    {
+      "id": "xunit.runner.visualstudio",
+      "version": "4.0.1",
+      "source": "https://api.nuget.org/v3-flatcontainer/xunit.runner.visualstudio/index.json",
+      "status": "Direct package downloaded and content pinned; package code not executed; dependency compatibility and complete transitive restore still unverified.",
+      "nupkg_sha512_base64": "P2zvJo7h/2dbxht2sXqy2KgyLCgvZ5azSP3M6XkdGuVEjTjT1aIFrM/cX/DRJGoNduNJJVmNG63eBEVZEV6rlw==",
+      "artifact_url": "https://api.nuget.org/v3-flatcontainer/xunit.runner.visualstudio/4.0.1/xunit.runner.visualstudio.4.0.1.nupkg"
+    },
+    {
+      "id": "microsoft.net.test.sdk",
+      "version": "18.12.0",
+      "source": "https://api.nuget.org/v3-flatcontainer/microsoft.net.test.sdk/index.json",
+      "status": "Direct package downloaded and content pinned; package code not executed; dependency compatibility and complete transitive restore still unverified.",
+      "nupkg_sha512_base64": "9B33Vnaq/mwHNhbTFOntWZpCMAioVFI1x6EC/qnALkrQafULg3dEdyFm6K7dWoKnAXl7i1dcVTIwD++UfkdNbQ==",
+      "artifact_url": "https://api.nuget.org/v3-flatcontainer/microsoft.net.test.sdk/18.12.0/microsoft.net.test.sdk.18.12.0.nupkg"
+    }
+  ],
+  "status": "Version metadata only; no package or runtime code executed."
+}

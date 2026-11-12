@@ -64,9 +64,12 @@ registered/locked worktrees and removal behavior. Review unique commits,
 untracked/ignored artifacts, required evidence, active use, and unavailable scope
 before proposing removal. Project-specific preservation checks remain binding.
 
-Approval should identify an exact cleanup proposal. Revalidate changed targets
-and state before execution, and distinguish approval, execution, and verified
-outcome. Retention, recovery, and eligibility policies remain undecided.
+The completed cleanup-policy ticket now owns the human rulings: completed linked
+worktrees and proven regenerable material may be proposed; unique/required
+material is preserved; recovery copies have a minimum 30 days before review,
+without timed automatic deletion; approval means approve-and-run after fresh
+checks. Ordinary filtered observation history has its own 30-day automatic expiry.
+The build plan carries the verification design; no cleanup has been exercised.
 
 ## Discriminating evidence still needed
 

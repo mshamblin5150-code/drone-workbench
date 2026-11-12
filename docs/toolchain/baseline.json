@@ -1,7 +1,7 @@
 {
   "schema_version": "agent-hygiene.build-baseline.v1",
   "checked_date": "2026-11-12",
-  "status": "Proposed version and complete upstream Git-object inventories. Sources are not yet fully downloaded, integrity-checked, installed or activated.",
+  "status": "Exact source inventories and complete package blob downloads verified. Sources remain inactive; SDK installation, full NuGet transitive restore and updated compatibility/discovery are unverified gates.",
   "sources": [
     {
       "name": "Matt Pocock engineering package",
@@ -5398,13 +5398,23 @@
     "language_version": "15.0",
     "source": "https://dotnet.microsoft.com/en-us/download/dotnet/11.0",
     "checked_date": "2026-11-12",
-    "status": "Verified published versions recorded for the proposed baseline; not installed, downloaded, or compatibility-tested.",
+    "status": "Published SDK/runtime metadata verified; SDK not downloaded or installed. Proposed direct NuGet artifacts downloaded and hashed without executing code; target compatibility and full transitive restore remain unverified.",
     "implementation_pinning_plan": [
       "global.json with an explicit SDK version and explicit roll-forward policy",
       "Central package versions and dependency lock files for selected NuGet packages",
       "Locked restore in verification",
       "Pin any selected .NET local tools and browser tooling"
     ],
-    "dashboard": "ASP.NET Core Blazor, server-side interactivity; collector independent of browser connections."
+    "dashboard": "ASP.NET Core Blazor, server-side interactivity; collector independent of browser connections.",
+    "release_metadata": "dotnet-release-pins.json",
+    "proposed_direct_package_pins": "nuget-direct-pins.json"
+  },
+  "source_verification": {
+    "receipt": "source-verification.json",
+    "verified_total_files": 757,
+    "global_activation": false,
+    "project_adapter_discovery": "unverified",
+    "literal_reference_census": "source-reference-audit.json",
+    "project_glossary": "GLOSSARY.md; legacy CONTEXT.md mapped in project guidance"
   }
 }

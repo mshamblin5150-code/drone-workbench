@@ -27,8 +27,11 @@ each resolution.
 - Operational metadata and intentionally published structured work summaries;
   filter protected information before persistence. Full prompts and transcripts
   are outside collection.
-- Dashboard job controls and approval of specific cleanup proposals. Cleanup
-  eligibility, retention, recovery, and execution policy are still open.
+- Dashboard job controls and approve-and-run of freshly checked exact cleanup
+  proposals. Preserve unique/required material; recovery copies have a minimum
+  30-day hold before review, with no automatic deletion at that date.
+- Ordinary filtered dashboard history remains searchable for 30 days and then
+  expires automatically, separately from cleanup evidence and recovery material.
 
 Confirmed decisions are authoritative in their resolved GitHub decision ticket;
 this overview is a navigation aid.
@@ -36,12 +39,16 @@ this overview is a navigation aid.
 ## Engineering and research
 
 - [Research findings](docs/research/findings.md)
+- [Proposed build plan](docs/plan/build-plan.md)
+- [Architecture comparison](docs/plan/architecture-rationale.md)
+- [Acceptance and evidence matrix](docs/plan/acceptance-matrix.md)
 - [Pinned source inventories and proposed tooling baseline](docs/toolchain/baseline.json)
 
 The source baseline identifies complete upstream Pocock and PStack packages,
-including support files, rather than only skill entrypoints. Download integrity,
-local compatibility, reference closure, and activation checks remain planning
-work. A version pin does not establish an installed or tested dependency.
+including support files, rather than only skill entrypoints. All 757 listed
+package blobs have been downloaded and verified. Local compatibility, semantic
+reference/dependency closure, and activation/discovery checks remain gates. A
+verified source snapshot does not establish an installed or tested dependency.
 
 Machine observations, private path mappings, credentials, raw sessions, and
 clinical material belong in local runtime storage rather than source control.

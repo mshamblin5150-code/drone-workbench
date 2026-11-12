@@ -1,0 +1,27 @@
+{
+  "source": "https://builds.dotnet.microsoft.com/dotnet/release-metadata/11.0/releases.json",
+  "release_version": "11.0.0",
+  "sdk_version": "11.0.100",
+  "runtime_version": "11.0.0",
+  "sdk_windows_x64_files": [
+    {
+      "name": "dotnet-sdk-win-x64.exe",
+      "rid": "win-x64",
+      "url": "https://builds.dotnet.microsoft.com/dotnet/Sdk/11.0.100/dotnet-sdk-11.0.100-win-x64.exe",
+      "hash": "9777f9c9b8ea136a3aa5284f6bd33b0f1b3133fbc96d05d5c725683ccc101bc2fb2830c4182e199ec236c61a5e703a77b05770dcf3c881552ef77c7ada0584ff"
+    },
+    {
+      "name": "dotnet-sdk-win-x64.tar.gz",
+      "rid": "win-x64",
+      "url": "https://builds.dotnet.microsoft.com/dotnet/Sdk/11.0.100/dotnet-sdk-11.0.100-win-x64.tar.gz",
+      "hash": "9beef28998c50eaa011f4241ff71c8c450c76a8556eda084d1f9857de3d6b5d9b136144a3e1a98b9f9b3e1e2fe50b06fff4c2f3b41208780a800408859084591"
+    },
+    {
+      "name": "dotnet-sdk-win-x64.zip",
+      "rid": "win-x64",
+      "url": "https://builds.dotnet.microsoft.com/dotnet/Sdk/11.0.100/dotnet-sdk-11.0.100-win-x64.zip",
+      "hash": "5cdd9122c84873f090038548ebe8a4786e5c50a6b1b9792ca2c6dab82fd74a0d7f1d6cdf59e7dcd25e4903dd44f37af5d7ed73ecd3bca4d0cce948b5572452c3"
+    }
+  ],
+  "status": "Release metadata only; SDK not downloaded or installed."
+}

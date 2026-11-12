@@ -1,0 +1,67 @@
+{
+  "method": "Passive census of literal Markdown links only; no URL fetching, source execution, package activation, or semantic reference-closure claim. Code examples/templates can yield false positives. Cross-package dependencies and harness-specific resources need review.",
+  "packages": [
+    {
+      "package": "pocock",
+      "counts": {
+        "documents": 126,
+        "resolved_package_file_links": 143,
+        "unresolved_package_file_links": 5,
+        "outside_package_links": 0,
+        "dynamic_or_other_links": 0
+      },
+      "review_items": [
+        {
+          "source": "skills/in-progress/setup-ts-deep-modules/SKILL.md",
+          "target": "./src/packages/README.md",
+          "status": "unresolved_literal_link",
+          "classification": "illustrative consumer path or template placeholder, not a missing packaged dependency"
+        },
+        {
+          "source": "skills/engineering/domain-modeling/GLOSSARY-FORMAT.md",
+          "target": "./src/ordering/GLOSSARY.md",
+          "status": "unresolved_literal_link",
+          "classification": "illustrative consumer path or template placeholder, not a missing packaged dependency"
+        },
+        {
+          "source": "skills/engineering/domain-modeling/GLOSSARY-FORMAT.md",
+          "target": "./src/billing/GLOSSARY.md",
+          "status": "unresolved_literal_link",
+          "classification": "illustrative consumer path or template placeholder, not a missing packaged dependency"
+        },
+        {
+          "source": "skills/engineering/domain-modeling/GLOSSARY-FORMAT.md",
+          "target": "./src/fulfillment/GLOSSARY.md",
+          "status": "unresolved_literal_link",
+          "classification": "illustrative consumer path or template placeholder, not a missing packaged dependency"
+        },
+        {
+          "source": "skills/engineering/wayfinder/SKILL.md",
+          "target": "link",
+          "status": "unresolved_literal_link",
+          "classification": "illustrative consumer path or template placeholder, not a missing packaged dependency"
+        }
+      ]
+    },
+    {
+      "package": "pstack",
+      "counts": {
+        "documents": 169,
+        "resolved_package_file_links": 342,
+        "unresolved_package_file_links": 1,
+        "outside_package_links": 0,
+        "dynamic_or_other_links": 0
+      },
+      "review_items": [
+        {
+          "source": "skills/why/references/synthesizer-prompt.md",
+          "target": "url",
+          "status": "unresolved_literal_link",
+          "classification": "illustrative consumer path or template placeholder, not a missing packaged dependency"
+        }
+      ]
+    }
+  ],
+  "review_status": "All six unresolved literal targets reviewed in source context as examples/placeholders. Literal links census does not establish complete semantic dependency/harness closure.",
+  "compatibility_finding": "Pinned Pocock 1.3.2 uses GLOSSARY.md. This project now uses that canonical name, with a documented legacy CONTEXT.md mapping; global skills and other projects unchanged."
+}
