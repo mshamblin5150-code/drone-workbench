@@ -1,0 +1,89 @@
+{
+  "schema_version": 1,
+  "capabilities": [
+    {
+      "feature": "Complete immutable source packages and support resources",
+      "harness": "both",
+      "state": "supported",
+      "evidence": "engineering-sources.lock.json; runtime verifier must pass before use"
+    },
+    {
+      "feature": "Codex project skill discovery",
+      "harness": "codex",
+      "state": "supported",
+      "evidence": "Observed native CLI metadata; engineering-stack-verification.json. Desktop loading is separate."
+    },
+    {
+      "feature": "Claude session plugin skills and packaged agents",
+      "harness": "claude-cli",
+      "state": "supported",
+      "evidence": "Observed native CLI metadata; engineering-stack-verification.json. Desktop loading is separate."
+    },
+    {
+      "feature": "Claude desktop default plugin activation",
+      "harness": "claude-desktop",
+      "state": "unverified",
+      "evidence": "No desktop restart or global plugin installation is part of this operation"
+    },
+    {
+      "feature": "Cursor agent definitions",
+      "harness": "codex",
+      "state": "equivalent",
+      "evidence": "Preserved reference prompts adapted to available generic bounded helpers; no native type registration claim"
+    },
+    {
+      "feature": "Cursor Task, AskQuestion, todo and environment fields",
+      "harness": "both",
+      "state": "equivalent",
+      "evidence": "docs/agents/engineering-stack.md maps actual tools and records unsupported fields"
+    },
+    {
+      "feature": "Default Grok/Claude panel and cross-family judge",
+      "harness": "this-codex-session",
+      "state": "unsupported",
+      "evidence": "Those families are absent from the available collaboration model schema; inherited-model contexts are not multi-model review"
+    },
+    {
+      "feature": "Global model-rule setup",
+      "harness": "both",
+      "state": "dormant",
+      "evidence": "Preserve existing role assignments and configuration; setup-pstack does not run automatically"
+    },
+    {
+      "feature": "Team Kit deslop, control-cli and control-ui instructions",
+      "harness": "both",
+      "state": "supported",
+      "evidence": "Complete same-commit cursor-team-kit package; native control tooling still checked per task"
+    },
+    {
+      "feature": "Hooks, automations, webhooks and external services",
+      "harness": "both",
+      "state": "dormant",
+      "evidence": "Source retained; no registration or execution authority follows from inclusion"
+    },
+    {
+      "feature": "Cursor cloud VM, loop and sticky-mode behavior",
+      "harness": "both",
+      "state": "unsupported",
+      "evidence": "No claim that local helpers emulate these services; no automation scheduled"
+    },
+    {
+      "feature": "Bugbot",
+      "harness": "both",
+      "state": "conditional",
+      "evidence": "Review existing comments if present; no check installation or fabricated review"
+    },
+    {
+      "feature": "Workbench UI, collector, controls and cleanup runtime",
+      "harness": "both",
+      "state": "unverified",
+      "evidence": "Engineering stack setup is not product implementation or acceptance"
+    },
+    {
+      "feature": "Native Claude independent code review",
+      "harness": "claude-cli",
+      "state": "supported",
+      "evidence": "One read-only claude-opus-5-5 review with existing account; findings and dispositions in verification receipt. This does not provide a Grok panel or Cursor cloud environment."
+    }
+  ]
+}
