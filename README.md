@@ -65,6 +65,8 @@ this overview is a navigation aid.
 ## Engineering and research
 
 - [Research findings](docs/research/findings.md)
+- [Codex readiness after the foundation](docs/research/codex-post-foundation-readiness.md)
+- [Claude coverage handoff](docs/plan/claude-coverage-handoff.md)
 - [Confirmed build plan](docs/plan/build-plan.md)
 - [Architecture comparison](docs/plan/architecture-rationale.md)
 - [Acceptance and evidence matrix](docs/plan/acceptance-matrix.md)
