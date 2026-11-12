@@ -1,0 +1,31 @@
+# Local runtime and private working material
+/.local/
+/runtime/
+/data/
+/logs/
+/work/
+/.scratch/
+/scratch/
+/outputs/
+/captures/
+.env
+.env.*
+*.db
+*.db-*
+*.sqlite
+*.sqlite3
+*.sqlite-*
+*.sqlite3-*
+
+# Build and editor state
+**/bin/
+**/obj/
+.vs/
+*.user
+*.suo
+TestResults/
+node_modules/
+.venv/
+__pycache__/
+.mypy_cache/
+.ruff_cache/
