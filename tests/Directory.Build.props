@@ -1,0 +1,6 @@
+<Project>
+  <Import Project="../Directory.Build.props" />
+  <ItemGroup>
+    <Compile Include="../TestProcess.cs" Link="TestProcess.cs" />
+  </ItemGroup>
+</Project>

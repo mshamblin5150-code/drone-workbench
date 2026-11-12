@@ -1,9 +1,11 @@
 # Drone Workbench
 
-The current operation is [Plan Drone Workbench before implementation](https://github.com/mshamblin5150-code/drone-workbench/issues/1).
-Read that map before project work; its child tickets own decisions. While that
-operation remains active, resolve decisions and agreed research/prototypes rather
-than implement production features.
+Read [the planning map](https://github.com/mshamblin5150-code/drone-workbench/issues/1)
+before project work; its child tickets own decisions. The owner separately
+authorized [the S0 .NET foundation](https://github.com/mshamblin5150-code/drone-workbench/issues/16).
+That task covers reproducible builds and synthetic runtime checks. Remaining
+source-coverage decisions stay open. Implement later stages only after their
+scope and authority are resolved.
 
 During human decision interviews, follow `docs/agents/grilling.md`.
 

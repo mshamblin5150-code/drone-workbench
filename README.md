@@ -6,13 +6,39 @@ supported interfaces.
 
 ## Current stage
 
-Wayfinding: produce a decision-backed build plan before implementation. No
-collector, CLI, dashboard, cleanup executor, or startup task has been built or
-installed.
+The S0 foundation provides a loopback health host, CLI diagnostics, and supervisor
+diagnostics. The collector, dashboard, agent adapters, cleanup scanner, cleanup
+executor, background supervision, and startup registration remain unimplemented.
 
 The canonical map is [Plan Drone Workbench before implementation](https://github.com/mshamblin5150-code/drone-workbench/issues/1).
 Its child issues hold decision tickets. The map links to the ticket that owns
 each resolution.
+
+## Verify the foundation
+
+From a Windows x64 checkout with PowerShell 7 and Git, run:
+
+```powershell
+pwsh -NoProfile -File tools/verify-dotnet.ps1
+```
+
+The script downloads and verifies the pinned SDK in repository-local storage.
+It checks package hashes, restores locked dependencies, builds with analyzers,
+checks formatting, runs synthetic tests, and publishes Windows x64 artifacts.
+It restores its process environment on exit. SDK and package caches, publish
+output, and private verification records stay under ignored `.local` directories.
+No global SDK installation is required.
+
+To inspect the CLI after verification, run:
+
+```powershell
+$dotnet = & ./tools/bootstrap-dotnet.ps1
+& $dotnet .local/publish/Cli/Workbench.Cli.dll --help
+& $dotnet .local/publish/Cli/Workbench.Cli.dll diagnostics --json
+```
+
+Diagnostics describe the foundation executable. They do not observe drone work.
+See [the foundation design](docs/plan/s0-foundation.md) for scope and workflow limits.
 
 ## Chosen direction
 
