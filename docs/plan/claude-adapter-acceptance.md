@@ -44,7 +44,8 @@ request.
 | ID | Type | Given | When | Then | Evidence today | PR |
 | --- | --- | --- | --- | --- | --- | --- |
 | CV-1 | R | Desktop Code sessions are running | The adapter polls | Each appears as a `Session` with `Entrypoint.Desktop`, classified by its parent process chain, with no `ControlReference` and controls `NoSupportedRoute` | Observed listing. Ticket 7 matched desktop sessions to app child processes by PID. The parent-chain classifier is untested | CA3 |
-| CV-2 | O | The operator started a native interactive `claude` in a terminal outside Workbench | The adapter polls | It appears with `Entrypoint.InteractiveCli` and no controls | Unverified. No separate interactive run in ticket 7 | CA3 |
+| CV-2 | O | The operator started an idle native interactive `claude` without a prompt outside Workbench | The adapter polls and successfully inventories processes | If absent from the agent view, it appears only in unmatched process accounting with `NotInAgentView`, not as an invented session. Incomplete inventory reports unknown totals. Controls remain unavailable | Observed absence across three launches in the post-foundation assessment | CA3 |
+| CV-2b | M | A first synthetic model turn in native interactive CLI is separately authorized | The adapter polls after the prompt | Record whether the source lists it before claiming `InteractiveCli` session coverage. Until demonstrated, keep post-prompt coverage `Unverified` | Not tested; model-turn authorization remains required | CA3 |
 | CV-3 | S | Two synthetic background sessions run in two synthetic projects | The adapter polls | Both appear with `Entrypoint.Background`, separate `ProjectRef` values and a `SourceStable` reference each | Observed for one project | CA3 |
 | CV-4 | M | A synthetic `claude -p` or Agent SDK run is active | The adapter polls during the run | The run is listed, or the Coverage view shows `Entrypoint.Headless` as `Unverified` with a gap reason. It is never silently absent | Unverified | CA3 |
 | CV-5 | R | A `claude` process runs that the agent view does not list | The adapter reconciles processes | Coverage shows an unmatched Claude process count with reason `NotInAgentView` | Unverified | CA3 |
@@ -75,6 +76,12 @@ request.
 | LV-7 | P | `status=waiting` with a known `waitingFor` value and an unknown one | The parser reads both | The known value maps to an enum. The unknown text is dropped and recorded as `Unknown` | Docs only | CA2 |
 
 ## Workbench and source restarts
+
+An incarnation change can occur between samples without an observed restart
+gap. Link the new incarnation when supported by the metadata, but do not invent
+an intermediate `Restarting` observation. Supervisor health is independent of
+successful agent-view polling. Until a supported signal exists, report it as
+unknown and keep controls unavailable.
 
 | ID | Type | Given | When | Then | Evidence today | PR |
 | --- | --- | --- | --- | --- | --- | --- |
