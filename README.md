@@ -10,8 +10,9 @@ Wayfinding: produce a decision-backed build plan before implementation. No
 collector, CLI, dashboard, cleanup executor, or startup task has been built or
 installed.
 
-The canonical map and decision tickets live in this repository's GitHub Issues.
-The map records decisions by linking to the ticket that owns each resolution.
+The canonical map is [Plan Drone Workbench before implementation](https://github.com/mshamblin5150-code/drone-workbench/issues/1).
+Its child issues hold decision tickets. The map links to the ticket that owns
+each resolution.
 
 ## Chosen direction
 
