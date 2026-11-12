@@ -34,6 +34,10 @@ because a design, help command, issue resolution or source inventory exists.
 | Packaging/update | S5 | Pinned artifact installs without changing unrelated projects; update preserves state, retention and stopped intent; uninstall/export behavior is documented and approved separately |
 | Public source boundary | Every slice | Only source, synthetic fixtures, sanitized evidence and pins are committed; private runtime roots remain outside the checkout and public CI |
 
+The [Claude adapter acceptance scenarios](claude-adapter-acceptance.md) refine
+the Claude, identity, stale-state, privacy and control rows for the proposed
+[source contract](source-contract.md). They do not mark any row passed.
+
 ## Test organization
 
 - Test domain outcomes through module interfaces with controlled clocks and
