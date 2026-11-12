@@ -15,7 +15,12 @@ internal sealed class TestProcess : IDisposable
 
     public StreamReader StandardOutput => this.process.StandardOutput;
 
-    public static TestProcess Start(string component, params string[] arguments)
+    public static TestProcess Start(string component, params string[] arguments) =>
+        Start(component, new Dictionary<string, string>(), arguments);
+
+    public static string NewInstance() => "t" + Guid.NewGuid().ToString("N")[..15];
+
+    public static TestProcess Start(string component, IReadOnlyDictionary<string, string> environment, params string[] arguments)
     {
         var host = Environment.GetEnvironmentVariable("DOTNET_HOST_PATH")
             ?? throw new InvalidOperationException("Run tests with tools/verify-dotnet.ps1 to select the pinned SDK.");
@@ -35,7 +40,33 @@ internal sealed class TestProcess : IDisposable
         start.Environment["ASPNETCORE_ENVIRONMENT"] = "Production";
         start.Environment["ASPNETCORE_URLS"] = "http://127.0.0.1:45678";
         start.Environment["Kestrel__Endpoints__Injected__Url"] = "unsupported-scheme://127.0.0.1:45679";
+        start.Environment["DRONE_WORKBENCH_INSTANCE"] = NewInstance();
+        if (component == "Host")
+        {
+            HideClaudeInstallation(start);
+        }
+
+        foreach (var (name, value) in environment)
+        {
+            start.Environment[name] = value;
+        }
+
         return new TestProcess(Process.Start(start) ?? throw new InvalidOperationException("The owned test process did not start."));
+    }
+
+    public async Task<IReadOnlyList<string>> ReadUntilStartedAsync(CancellationToken cancellationToken)
+    {
+        var lines = new List<string>();
+        while (await this.process.StandardOutput.ReadLineAsync(cancellationToken).AsTask().WaitAsync(cancellationToken) is { } line)
+        {
+            lines.Add(line);
+            if (line.Contains("Application started.", StringComparison.Ordinal))
+            {
+                return lines;
+            }
+        }
+
+        throw new InvalidOperationException("The owned host exited before it started.");
     }
 
     public async Task<ProcessResult> CompleteAsync()
@@ -55,6 +86,8 @@ internal sealed class TestProcess : IDisposable
 
         this.process.Dispose();
     }
+
+    private static void HideClaudeInstallation(ProcessStartInfo start) => start.Environment["PATH"] = string.Empty;
 
     internal sealed record ProcessResult(int ExitCode, string StandardOutput, string StandardError);
 }
