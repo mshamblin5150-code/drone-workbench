@@ -40,6 +40,24 @@
       "status": "Direct package downloaded and content pinned; package code not executed; dependency compatibility and complete transitive restore still unverified.",
       "nupkg_sha512_base64": "9B33Vnaq/mwHNhbTFOntWZpCMAioVFI1x6EC/qnALkrQafULg3dEdyFm6K7dWoKnAXl7i1dcVTIwD++UfkdNbQ==",
       "artifact_url": "https://api.nuget.org/v3-flatcontainer/microsoft.net.test.sdk/18.12.0/microsoft.net.test.sdk.18.12.0.nupkg"
+    },
+    {
+      "id": "stylecop.analyzers",
+      "version": "1.3.180",
+      "source": "https://api.nuget.org/v3-flatcontainer/stylecop.analyzers/index.json",
+      "published": "2026-11-11",
+      "status": "Analyzer-only development dependency (developmentDependency=true, no package dependencies). SHA-512 taken from the nuget.org catalog packageHash; package not downloaded or executed; rule-set configuration, SDK/C# compatibility and locked restore still unverified.",
+      "nupkg_sha512_base64": "CZkFLrQ8UARM1xwemqX84WgmqGGoSm2lwDsU2uXvGItuAUQhGqzWaHibMJbR2bOgo3rj4RLBYv7dPNBaj/U3JA==",
+      "artifact_url": "https://api.nuget.org/v3-flatcontainer/stylecop.analyzers/1.3.180/stylecop.analyzers.1.3.180.nupkg"
+    },
+    {
+      "id": "roslynator.analyzers",
+      "version": "5.0.1",
+      "source": "https://api.nuget.org/v3-flatcontainer/roslynator.analyzers/index.json",
+      "published": "2026-10-04",
+      "status": "Analyzer-only development dependency (developmentDependency=true, no package dependencies). SHA-512 taken from the nuget.org catalog packageHash; package not downloaded or executed; rule-set configuration, SDK/C# compatibility and locked restore still unverified.",
+      "nupkg_sha512_base64": "0RHqc/HMgdQDpXJ7mxqJyUUiJvVk91kRJnfxgq998H7Pvw4FPEVMLomr5AE5k0Sm1TI5bB7YRJmjrkEj6NPSOg==",
+      "artifact_url": "https://api.nuget.org/v3-flatcontainer/roslynator.analyzers/5.0.1/roslynator.analyzers.5.0.1.nupkg"
     }
   ],
   "status": "Version metadata only; no package or runtime code executed."
