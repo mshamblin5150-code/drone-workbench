@@ -1,0 +1,33 @@
+{
+  "schema_version": 1,
+  "date": "2026-11-12",
+  "baseline": "575f5d9558b5d5602e973ad4f505a0c7f3bfa3a9",
+  "cli_version": "0.167.0-alpha.4.1",
+  "scope": "Filtered Windows process metadata and documented daemon version query only",
+  "existing_owner_snapshot": {
+    "process_query_succeeded": true,
+    "observed_app_server_count": 1,
+    "parent_executable": "ChatGPT.exe",
+    "command_line_available": true,
+    "listen_option_present": false,
+    "stdio_option_present": false,
+    "analytics_default_enabled_option_present": true,
+    "tcp_listener_query_succeeded": true,
+    "owner_incarnation_stable_during_query": true,
+    "tcp_listener_count": 0
+  },
+  "daemon_version_query": {
+    "exit_code": 1,
+    "json_object_returned": false,
+    "failure_mentions_socket_and_connect": true,
+    "reported_os_error": 10050,
+    "interpretation": "The queried default daemon route did not connect. This is not proof that Windows sockets fail generally or that no other endpoint can exist."
+  },
+  "existing_owner_semantic_access_verified": false,
+  "model_turns_started": 0,
+  "real_session_controls_sent": 0,
+  "private_database_or_history_reads": 0,
+  "daemon_lifecycle_or_configuration_changes": 0,
+  "disclosure": "Raw command lines, process IDs, socket paths, errors and session content were not retained in this public receipt. Process presence is not semantic work coverage.",
+  "receipt_recorded_utc": "2026-11-12T21:05:11.4696692+00:00"
+}

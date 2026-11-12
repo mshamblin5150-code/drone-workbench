@@ -1,0 +1,119 @@
+{
+  "schema_version": 1,
+  "date": "2026-11-12",
+  "baseline": "575f5d9558b5d5602e973ad4f505a0c7f3bfa3a9",
+  "scope": "Throwaway metadata-only .NET 11 transport prototype; not production integration",
+  "source_sha256": {
+    "Program.cs": "4ebceb0d135b766563e9b2f5b4d2c0e45ce2033a363d60fcf302e8f04be0bfc7",
+    "Probe.csproj": "c7fbd85f358f665a07e73bba48607cf32fb11f535ac627dfd5ca08511fc2a7f1",
+    "run-probe.ps1": "5d8bc643970d395f7878b896f95ed783dc0cbecfb940e7a7921d75a95a29d930",
+    "global.json": "bfaf40d1a86baeea39cde6300a5aaa9c55917256d4fade475ac7ffa3bd58bb58",
+    "Directory.Build.props": "17284cb74605517cbec8a8153505da71a685b28694b67b5ef80608cd79b1c0ea",
+    "Directory.Packages.props": "17284cb74605517cbec8a8153505da71a685b28694b67b5ef80608cd79b1c0ea",
+    "NuGet.config": "2142cfb2dfa2c7feefbe40fabcc68b0dfecadafa99a1db9b70239d977cf2a7ef"
+  },
+  "independent_repeat": true,
+  "run_1": {
+    "schema_version": 1,
+    "date": "2026-11-12",
+    "runtime_version": "11.0.0",
+    "runtime_framework": ".NET 11.0.0",
+    "transport": "websocket-over-unix",
+    "isolated_home": true,
+    "model_turns_started": 0,
+    "real_sessions_read_or_controlled": false,
+    "existing_owner_coverage_demonstrated": false,
+    "connections": [
+      {
+        "connection": 1,
+        "websocket_upgrade_completed": true,
+        "initialized": true,
+        "empty_loaded_snapshot": true,
+        "loaded_thread_count": 0,
+        "websocket_closed": false,
+        "close_result": "ConnectionClosedPrematurely"
+      },
+      {
+        "connection": 2,
+        "websocket_upgrade_completed": true,
+        "initialized": true,
+        "empty_loaded_snapshot": true,
+        "loaded_thread_count": 0,
+        "websocket_closed": false,
+        "close_result": "ConnectionClosedPrematurely"
+      }
+    ],
+    "server_alive_between_connections": true,
+    "owned_server_exited": true,
+    "owned_server_exit_code": -1,
+    "passed": true,
+    "sdk_version": "11.0.100",
+    "cli_version": "0.167.0-alpha.4.1",
+    "socket_directory_private_acl_verified": true,
+    "home_directory_private_acl_verified": true,
+    "probe_process_exit_code": 0,
+    "source_sha256": {
+      "Program.cs": "4ebceb0d135b766563e9b2f5b4d2c0e45ce2033a363d60fcf302e8f04be0bfc7",
+      "Probe.csproj": "c7fbd85f358f665a07e73bba48607cf32fb11f535ac627dfd5ca08511fc2a7f1",
+      "global.json": "bfaf40d1a86baeea39cde6300a5aaa9c55917256d4fade475ac7ffa3bd58bb58",
+      "Directory.Build.props": "17284cb74605517cbec8a8153505da71a685b28694b67b5ef80608cd79b1c0ea",
+      "Directory.Packages.props": "17284cb74605517cbec8a8153505da71a685b28694b67b5ef80608cd79b1c0ea",
+      "NuGet.config": "2142cfb2dfa2c7feefbe40fabcc68b0dfecadafa99a1db9b70239d977cf2a7ef",
+      "run-probe.ps1": "5d8bc643970d395f7878b896f95ed783dc0cbecfb940e7a7921d75a95a29d930"
+    },
+    "probe_binary_sha256": "43751f115fbae99ce68267bb68742e92074cf0e7eeb7f3653b43202666b0309a",
+    "new_development_certificate_count_today": 0
+  },
+  "run_2": {
+    "schema_version": 1,
+    "date": "2026-11-12",
+    "runtime_version": "11.0.0",
+    "runtime_framework": ".NET 11.0.0",
+    "transport": "websocket-over-unix",
+    "isolated_home": true,
+    "model_turns_started": 0,
+    "real_sessions_read_or_controlled": false,
+    "existing_owner_coverage_demonstrated": false,
+    "connections": [
+      {
+        "connection": 1,
+        "websocket_upgrade_completed": true,
+        "initialized": true,
+        "empty_loaded_snapshot": true,
+        "loaded_thread_count": 0,
+        "websocket_closed": false,
+        "close_result": "ConnectionClosedPrematurely"
+      },
+      {
+        "connection": 2,
+        "websocket_upgrade_completed": true,
+        "initialized": true,
+        "empty_loaded_snapshot": true,
+        "loaded_thread_count": 0,
+        "websocket_closed": false,
+        "close_result": "ConnectionClosedPrematurely"
+      }
+    ],
+    "server_alive_between_connections": true,
+    "owned_server_exited": true,
+    "owned_server_exit_code": -1,
+    "passed": true,
+    "sdk_version": "11.0.100",
+    "cli_version": "0.167.0-alpha.4.1",
+    "socket_directory_private_acl_verified": true,
+    "home_directory_private_acl_verified": true,
+    "probe_process_exit_code": 0
+  },
+  "harness_retained_locally": true,
+  "harness_in_public_checkout": false,
+  "unverified": [
+    "Existing desktop and independent CLI owner semantic access",
+    "Active model turns and subagents",
+    "Active-work event replay and reconnect reconciliation",
+    "Source-enforced control authority",
+    "Graceful WebSocket closure",
+    "Production adapter acceptance"
+  ],
+  "same_source_and_binary_hashes_on_repeat": true,
+  "probe_binary_sha256": "43751f115fbae99ce68267bb68742e92074cf0e7eeb7f3653b43202666b0309a"
+}
