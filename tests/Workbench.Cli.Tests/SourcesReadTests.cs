@@ -40,6 +40,44 @@ public sealed class SourcesReadTests
         AssertProtocolError(exitCode, output);
     }
 
+    [Fact]
+    public async Task ServerCanIdentifyButNotImpersonateTheClient()
+    {
+        var cancellationToken = TestContext.Current.CancellationToken;
+        var name = "drone-workbench-test-" + Guid.NewGuid().ToString("N");
+        await using var server = NamedPipeServerStreamAcl.Create(
+            name,
+            PipeDirection.InOut,
+            1,
+            PipeTransmissionMode.Byte,
+            PipeOptions.Asynchronous,
+            0,
+            0,
+            CurrentUserSecurity());
+        var serving = Task.Run(
+            async () =>
+            {
+                await server.WaitForConnectionAsync(cancellationToken);
+                var request = new byte[LocalChannel.SourcesRequest.Length + 1];
+                await server.ReadExactlyAsync(request, cancellationToken);
+                var level = TokenImpersonationLevel.None;
+                server.RunAsClient(() =>
+                {
+                    using var client = WindowsIdentity.GetCurrent(TokenAccessLevels.Query);
+                    level = client.ImpersonationLevel;
+                });
+                await server.WriteAsync(Encoding.UTF8.GetBytes(Snapshot + "\n"), cancellationToken);
+                await server.FlushAsync(cancellationToken);
+                return level;
+            },
+            cancellationToken);
+
+        var (exitCode, _) = await SourcesCommand.ReadAsync(name, cancellationToken);
+
+        Assert.Equal(SourcesCommand.HostAnswered, exitCode);
+        Assert.Equal(TokenImpersonationLevel.Identification, await serving.WaitAsync(TimeSpan.FromSeconds(10), cancellationToken));
+    }
+
     private static void AssertProtocolError(int exitCode, string output)
     {
         Assert.Equal(SourcesCommand.InvalidResponse, exitCode);
