@@ -48,11 +48,13 @@ because a design, help command, issue resolution or source inventory exists.
 
 ## Evidence provenance
 
-Already observed: complete pinned Pocock/PStack blob verification; published SDK
-release metadata; direct package identities/hashes; installed CLI version/help;
-one filtered Claude status query. Not observed: .NET SDK installation or full
-locked restore; native discovery of updated engineering adapters; existing Codex
-desktop attachment; synthetic cancellation, cleanup, restoration or performance.
+The original planning evidence covered source blobs, SDK release metadata,
+package identities and hashes, installed CLI help, and one filtered Claude status
+query. Subsequent engineering setup established native project discovery. The
+[S0 foundation verification](../verification/s0-foundation.md) records SDK,
+locked restore, build, and synthetic runtime results. Existing Codex desktop
+attachment, source cancellation, cleanup, restoration, and performance remain
+unverified. These separate results do not complete the S0 source-coverage gate.
 
 The implementation handoff must preserve that distinction. A failed required
 coverage gate returns a concrete product trade-off to the human before narrowing

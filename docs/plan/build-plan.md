@@ -1,8 +1,8 @@
 # Drone Workbench build plan
 
-Status: proposed synthesis for shared-understanding confirmation. This is a
-decision-backed implementation route, not implemented software or proof that
-all external integrations work. The canonical [Wayfinder map](https://github.com/mshamblin5150-code/drone-workbench/issues/1)
+Status: confirmed implementation route. The separately authorized
+[S0 foundation](s0-foundation.md) establishes build and synthetic runtime behavior;
+external integration evidence remains outstanding. The canonical [Wayfinder map](https://github.com/mshamblin5150-code/drone-workbench/issues/1)
 and its resolution comments own the human decisions.
 
 ## Outcome and scope
