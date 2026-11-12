@@ -16,5 +16,7 @@ csharp_style_namespace_declarations = file_scoped:warning
 dotnet_sort_system_directives_first = true
 dotnet_diagnostic.SA1633.severity = none
 dotnet_diagnostic.SA1600.severity = none
+dotnet_diagnostic.SA1601.severity = none
+dotnet_diagnostic.SA1602.severity = none
 dotnet_diagnostic.SA0001.severity = none
 

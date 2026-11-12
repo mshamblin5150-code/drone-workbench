@@ -6,9 +6,11 @@ supported interfaces.
 
 ## Current stage
 
-The S0 foundation provides a loopback health host, CLI diagnostics, and supervisor
-diagnostics. The collector, dashboard, agent adapters, cleanup scanner, cleanup
-executor, background supervision, and startup registration remain unimplemented.
+The foundation provides a loopback health host, CLI diagnostics, and supervisor
+diagnostics. An opt-in Host command captures read-only Claude metadata and
+process coverage once. The background collector, dashboard, cleanup scanner,
+cleanup executor, background supervision, and startup registration remain
+unimplemented. Existing Codex owner access remains unresolved.
 
 The canonical map is [Plan Drone Workbench before implementation](https://github.com/mshamblin5150-code/drone-workbench/issues/1).
 Its child issues hold decision tickets. The map links to the ticket that owns
@@ -39,6 +41,30 @@ $dotnet = & ./tools/bootstrap-dotnet.ps1
 
 Diagnostics describe the foundation executable. They do not observe drone work.
 See [the foundation design](docs/plan/s0-foundation.md) for scope and workflow limits.
+
+## Capture Claude metadata once
+
+After the build verification above, run the synthetic observation guard:
+
+```powershell
+pwsh -NoProfile -File tools/verify-claude-observation.ps1
+```
+
+To perform one read-only capture from the installed Claude CLI, run:
+
+```powershell
+pwsh -NoProfile -File tools/verify-claude-observation.ps1 -Live
+```
+
+Live mode requires the tested source version and an existing configuration root.
+It reports counts, enum states, process coverage, unknown supervisor health, and
+disabled controls. It starts no sessions and writes no source configuration.
+Process counts can include UI and helper processes; they are not session counts.
+Other roots and untested entrypoints remain explicit coverage gaps.
+
+The underlying command is `Workbench.Host observe-claude --json`. It captures
+once and exits without opening an HTTP listener. It does not start background
+collection. See [the read-only slice design](docs/plan/claude-readonly-slice.md).
 
 ## Chosen direction
 
