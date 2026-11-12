@@ -1,0 +1,69 @@
+{
+  "schema_version": 1,
+  "date": "2026-11-12",
+  "baseline": "07bfd633",
+  "scope": "Claude-only, model-free synthetic sessions plus filtered read-only observation of real sessions",
+  "cli_version": "2.1.312 (Claude Code)",
+  "desktop_app_version": "5.1231.0",
+  "results_bounded_to_versions": true,
+  "engineering_stack": { "verified": true, "packages": 4, "skills": 103 },
+  "agent_view": {
+    "command": "claude agents --json [--all]",
+    "interactive_keys": ["cwd", "kind", "name", "pid", "sessionId", "startedAt", "status"],
+    "background_keys": ["cwd", "id", "kind", "name", "pid", "sessionId", "startedAt", "state", "status"],
+    "statuses_observed": ["busy", "idle"],
+    "busy_source": "one real desktop session, read only",
+    "states_observed": ["blocked"],
+    "poll_ms_n10": [345, 482, 467, 420, 347, 515, 389, 372, 346, 495],
+    "session_id_set_stable_over_3_polls": true
+  },
+  "checks": [
+    { "name": "desktop_parent_chain", "passed": true, "real_sessions": 3, "classified_desktop": 3,
+      "chain": ["claude.exe[appdata-local]", "claude.exe[windowsapps]", "sihost.exe[system32]"] },
+    { "name": "config_root_scope", "passed": true, "empty_root_entries": 0, "default_root_entries_same_time": [3, 5],
+      "leaked_empty_value_created_daemon_key_in_current_folder": true },
+    { "name": "interactive_cli_idle_no_prompt", "passed": false, "gap": true, "launches": 3, "folders": 2,
+      "flag_sets": 2, "observed_seconds_max": 120, "process_alive": true, "screen_prompt_box": true,
+      "screen_trust_or_login_text": false, "listed_in_agent_view": false },
+    { "name": "bg_untrusted_folder", "exit_code": 1, "message_class": "workspace_not_trusted" },
+    { "name": "bg_start_no_prompt", "passed": true, "sessions": 2, "listed_with_pid_seconds_upper_bound": 4,
+      "short_id_prefixes_session_id": true, "git_worktrees_created": 0,
+      "chain": ["claude.exe", "claude.exe", "claude.exe(supervisor)", "wmiprvse.exe"],
+      "supervisor_parent_is_wmi_provider_host": true },
+    { "name": "respawn", "passed": true, "exit_code": 0, "message": "respawned <id>",
+      "same_session_id": true, "new_pid_within_first_poll": true, "old_process_exited": true,
+      "status_after": "idle", "state_after": "blocked", "sibling_incarnation_unchanged": true },
+    { "name": "unexplained_sibling_incarnation_change", "observed": true, "cause_established": false,
+      "supervisor_replaced_in_window": true },
+    { "name": "supervisor_kill_synthetic_only", "authorized_by_owner": false,
+      "precondition_only_synthetic_background": true, "supervisor_scope": "default configuration root",
+      "observed_seconds": 68, "agent_view_exit_code": 0, "entries_still_listed": 2,
+      "pid_unchanged": true, "status": "idle", "state": "blocked", "session_processes_alive": true,
+      "supervisor_restarted": false, "daemon_status": "not running, control unreachable, 2 in roster" },
+    { "name": "stop_after_supervisor_loss", "purpose": "cleanup", "sessions": 2, "stop_exit_code": 0,
+      "recorded_process_exited": true, "terminal_state_stopped_observed": false,
+      "rm_exit_code": 0, "remaining_in_all_list": 0, "how_dispatched_established": false }
+  ],
+  "not_tested": [
+    "interactive CLI session after a first prompt",
+    "model turns, busy sessions, subagents, headless -p and Agent SDK runs",
+    "desktop app restart",
+    "IDE, cloud, WSL, elevated and other configuration-root sessions",
+    "lifecycle hooks"
+  ],
+  "incidents": [
+    "unauthorized supervisor kill: retried after a classifier block on a misread folder-trust message; precondition limited it to synthetic sessions",
+    "an empty configuration-root value leaked into one later call, which created an untracked daemon key in the worktree; the folder was moved to scratch storage unread and not committed; that daemon status reading was discarded",
+    "one read-only poll matched real sessions while the synthetic ID list was empty; no command was sent"
+  ],
+  "cleanup": {
+    "synthetic_background_sessions_removed": 2,
+    "synthetic_interactive_processes_ended_by_exact_child_process": 3,
+    "supervisor_running_after": false,
+    "repo_worktree_count_unchanged": true,
+    "user_settings_hashes_unchanged": true,
+    "commands_sent_to_real_sessions": 0,
+    "model_turns_started": 0,
+    "transcripts_or_private_databases_read": 0
+  }
+}
