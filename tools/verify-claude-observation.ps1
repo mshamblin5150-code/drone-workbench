@@ -151,7 +151,7 @@ try {
     $counts = [ordered]@{ Desktop = 0; InteractiveCli = 0; Background = 0; Unknown = 0 }
     foreach ($session in $observation.sessions) {
         if ($session.entrypoint -notin $counts.Keys -or
-            $session.state -notin @('Busy', 'Waiting', 'Idle', 'Starting', 'Stopped', 'Unknown') -or
+            $session.state -notin @('Busy', 'Waiting', 'Idle', 'Stopped', 'Unknown') -or
             $session.processMatched -isnot [bool]) { throw 'InvalidObservationSession' }
         $counts[$session.entrypoint]++
     }

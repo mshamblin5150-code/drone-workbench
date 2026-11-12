@@ -65,6 +65,8 @@ Other roots and untested entrypoints remain explicit coverage gaps.
 The underlying command is `Workbench.Host observe-claude --json`. It captures
 once and exits without opening an HTTP listener. It does not start background
 collection. See [the read-only slice design](docs/plan/claude-readonly-slice.md).
+The [verification report](docs/verification/claude-readonly.md) records the tested
+versions, live results, privacy boundary, and remaining coverage gaps.
 
 ## Chosen direction
 
