@@ -1,0 +1,43 @@
+{
+  "schema_version": 1,
+  "date": "2026-11-12",
+  "scope": "Claude-only, no model turns, synthetic background sessions only",
+  "cli_version": "2.1.312 (Claude Code)",
+  "desktop_app_version": "5.1231.0",
+  "agent_view": {
+    "command": "claude agents --json [--all]",
+    "interactive_fields": ["cwd", "kind", "name", "pid", "sessionId", "startedAt", "status"],
+    "background_extra_fields": ["id", "state"],
+    "observed_kinds": ["interactive", "background"],
+    "real_interactive_sessions_observed": 2,
+    "desktop_owned_sessions_matched_to_app_child_process": 2
+  },
+  "checks": [
+    {"name": "bg_start_without_prompt", "result": "idle", "state": "blocked", "supervisor_started": true},
+    {"name": "startup_window", "pid_and_status_absent_briefly": true},
+    {"name": "wrong_id_stop", "exit_code": 1, "message": "No job matching '<id>'", "synthetic_still_alive": true},
+    {"name": "correct_stop", "exit_code": 0, "message": "stopped <id>", "process_gone_ms_upper_bound": 847},
+    {"name": "correct_stop_handle_wait", "session_process_exited": true, "pty_host_exited": true},
+    {"name": "after_stop_listing", "default_list": "absent", "all_list_state": "stopped", "pid_present": false},
+    {"name": "repeat_stop", "exit_code": 0, "message": "stopped <id>", "idempotent": true},
+    {"name": "rm", "exit_code": 0, "message": "removed <id>"},
+    {"name": "repeat_rm", "exit_code": 1, "message": "No job matching '<id>'"},
+    {"name": "external_kill", "respawned": true, "same_short_id": true, "new_pid": true, "respawn_seconds_upper_bound": 15,
+     "gap_fields": {"pid": "absent", "status": "absent", "state": "blocked (stale)"}},
+    {"name": "supervisor_after_last_stop", "exited_within_seconds": 20},
+    {"name": "hook_session_start", "fired": true, "source": "startup",
+     "keys": ["cwd", "hook_event_name", "model", "scratchpad_dir", "session_id", "session_title", "source", "transcript_path"]},
+    {"name": "hook_after_external_kill", "session_end_fired": false, "second_session_start_source": "startup"},
+    {"name": "hook_session_end_on_stop", "fired": true, "reason": "other",
+     "keys": ["cwd", "hook_event_name", "reason", "scratchpad_dir", "session_id", "transcript_path"]}
+  ],
+  "not_tested": [
+    "stop/interrupt of interactive or desktop-owned sessions",
+    "model turns, subagents, turn interruption",
+    "stop of a busy session and its tool descendants",
+    "desktop app restart, resume elsewhere",
+    "cloud sessions, other configuration roots, WSL, elevated contexts",
+    "partial-name targeting hazard"
+  ],
+  "cleanup": {"synthetic_sessions_removed": 3, "background_supervisors_remaining": 0, "user_settings_modified": false}
+}
