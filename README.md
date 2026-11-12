@@ -39,16 +39,21 @@ this overview is a navigation aid.
 ## Engineering and research
 
 - [Research findings](docs/research/findings.md)
-- [Proposed build plan](docs/plan/build-plan.md)
+- [Confirmed build plan](docs/plan/build-plan.md)
 - [Architecture comparison](docs/plan/architecture-rationale.md)
 - [Acceptance and evidence matrix](docs/plan/acceptance-matrix.md)
 - [Pinned source inventories and proposed tooling baseline](docs/toolchain/baseline.json)
+- [Project engineering workflow](docs/agents/engineering-stack.md)
+- [Engineering environment design](docs/toolchain/engineering-stack-design.md)
+- [Install, verify and use the pinned stack](docs/toolchain/use-engineering-stack.md)
+- [Observed setup verification](docs/toolchain/engineering-stack-verification.json)
 
-The source baseline identifies complete upstream Pocock and PStack packages,
-including support files, rather than only skill entrypoints. All 757 listed
-package blobs have been downloaded and verified. Local compatibility, semantic
-reference/dependency closure, and activation/discovery checks remain gates. A
-verified source snapshot does not establish an installed or tested dependency.
+The original source baseline covers 757 Pocock and PStack files. The project
+engineering lock adds the generated Claude harness and Team Kit dependency,
+covering 1,346 files in total. The source verifier and native CLI discovery checks
+have passed. Codex uses generated project entrypoints. Claude uses complete native
+plugins through a session launcher. Capability limits, including desktop plugin
+adoption and unavailable review models, remain explicit in the setup report.
 
 Machine observations, private path mappings, credentials, raw sessions, and
 clinical material belong in local runtime storage rather than source control.

@@ -1,0 +1,727 @@
+{
+  "schema_version": 1,
+  "generator": "tools/engineering-stack.ps1",
+  "entries": [
+    {
+      "package": "pocock",
+      "name": "dwb-pocock-ask-matt",
+      "upstream_name": "ask-matt",
+      "path": ".local/engineering-stack/sources/pocock/skills/engineering/ask-matt/SKILL.md",
+      "invocation": "user-only"
+    },
+    {
+      "package": "pstack",
+      "name": "dwb-pstack-setup-pstack",
+      "upstream_name": "setup-pstack",
+      "path": ".local/engineering-stack/sources/pstack/pstack/skills/setup-pstack/SKILL.md",
+      "invocation": "model-and-user"
+    },
+    {
+      "package": "pstack",
+      "name": "dwb-pstack-reflect",
+      "upstream_name": "reflect",
+      "path": ".local/engineering-stack/sources/pstack/pstack/skills/reflect/SKILL.md",
+      "invocation": "user-only"
+    },
+    {
+      "package": "pstack",
+      "name": "dwb-pstack-recall",
+      "upstream_name": "recall",
+      "path": ".local/engineering-stack/sources/pstack/pstack/skills/recall/SKILL.md",
+      "invocation": "user-only"
+    },
+    {
+      "package": "pstack",
+      "name": "dwb-pstack-principle-type-system-discipline",
+      "upstream_name": "principle-type-system-discipline",
+      "path": ".local/engineering-stack/sources/pstack/pstack/skills/principle-type-system-discipline/SKILL.md",
+      "invocation": "user-only"
+    },
+    {
+      "package": "pstack",
+      "name": "dwb-pstack-principle-test-behavior-not-implementation",
+      "upstream_name": "principle-test-behavior-not-implementation",
+      "path": ".local/engineering-stack/sources/pstack/pstack/skills/principle-test-behavior-not-implementation/SKILL.md",
+      "invocation": "user-only"
+    },
+    {
+      "package": "pstack",
+      "name": "dwb-pstack-principle-subtract-before-you-add",
+      "upstream_name": "principle-subtract-before-you-add",
+      "path": ".local/engineering-stack/sources/pstack/pstack/skills/principle-subtract-before-you-add/SKILL.md",
+      "invocation": "user-only"
+    },
+    {
+      "package": "pstack",
+      "name": "dwb-pstack-principle-sequence-verifiable-units",
+      "upstream_name": "principle-sequence-verifiable-units",
+      "path": ".local/engineering-stack/sources/pstack/pstack/skills/principle-sequence-verifiable-units/SKILL.md",
+      "invocation": "user-only"
+    },
+    {
+      "package": "pstack",
+      "name": "dwb-pstack-principle-separate-before-serializing-shared-state",
+      "upstream_name": "principle-separate-before-serializing-shared-state",
+      "path": ".local/engineering-stack/sources/pstack/pstack/skills/principle-separate-before-serializing-shared-state/SKILL.md",
+      "invocation": "user-only"
+    },
+    {
+      "package": "pstack",
+      "name": "dwb-pstack-principle-redesign-from-first-principles",
+      "upstream_name": "principle-redesign-from-first-principles",
+      "path": ".local/engineering-stack/sources/pstack/pstack/skills/principle-redesign-from-first-principles/SKILL.md",
+      "invocation": "user-only"
+    },
+    {
+      "package": "pstack",
+      "name": "dwb-pstack-principle-prove-it-works",
+      "upstream_name": "principle-prove-it-works",
+      "path": ".local/engineering-stack/sources/pstack/pstack/skills/principle-prove-it-works/SKILL.md",
+      "invocation": "user-only"
+    },
+    {
+      "package": "pstack",
+      "name": "dwb-pstack-sharpen",
+      "upstream_name": "sharpen",
+      "path": ".local/engineering-stack/sources/pstack/pstack/skills/sharpen/SKILL.md",
+      "invocation": "user-only"
+    },
+    {
+      "package": "pstack",
+      "name": "dwb-pstack-principle-outcome-oriented-execution",
+      "upstream_name": "principle-outcome-oriented-execution",
+      "path": ".local/engineering-stack/sources/pstack/pstack/skills/principle-outcome-oriented-execution/SKILL.md",
+      "invocation": "user-only"
+    },
+    {
+      "package": "pstack",
+      "name": "dwb-pstack-principle-model-the-domain",
+      "upstream_name": "principle-model-the-domain",
+      "path": ".local/engineering-stack/sources/pstack/pstack/skills/principle-model-the-domain/SKILL.md",
+      "invocation": "user-only"
+    },
+    {
+      "package": "pstack",
+      "name": "dwb-pstack-principle-minimize-reader-load",
+      "upstream_name": "principle-minimize-reader-load",
+      "path": ".local/engineering-stack/sources/pstack/pstack/skills/principle-minimize-reader-load/SKILL.md",
+      "invocation": "user-only"
+    },
+    {
+      "package": "pstack",
+      "name": "dwb-pstack-principle-migrate-callers-then-delete-legacy-apis",
+      "upstream_name": "principle-migrate-callers-then-delete-legacy-apis",
+      "path": ".local/engineering-stack/sources/pstack/pstack/skills/principle-migrate-callers-then-delete-legacy-apis/SKILL.md",
+      "invocation": "user-only"
+    },
+    {
+      "package": "pstack",
+      "name": "dwb-pstack-principle-make-operations-idempotent",
+      "upstream_name": "principle-make-operations-idempotent",
+      "path": ".local/engineering-stack/sources/pstack/pstack/skills/principle-make-operations-idempotent/SKILL.md",
+      "invocation": "user-only"
+    },
+    {
+      "package": "pstack",
+      "name": "dwb-pstack-principle-laziness-protocol",
+      "upstream_name": "principle-laziness-protocol",
+      "path": ".local/engineering-stack/sources/pstack/pstack/skills/principle-laziness-protocol/SKILL.md",
+      "invocation": "user-only"
+    },
+    {
+      "package": "pstack",
+      "name": "dwb-pstack-principle-guard-the-context-window",
+      "upstream_name": "principle-guard-the-context-window",
+      "path": ".local/engineering-stack/sources/pstack/pstack/skills/principle-guard-the-context-window/SKILL.md",
+      "invocation": "user-only"
+    },
+    {
+      "package": "pstack",
+      "name": "dwb-pstack-principle-foundational-thinking",
+      "upstream_name": "principle-foundational-thinking",
+      "path": ".local/engineering-stack/sources/pstack/pstack/skills/principle-foundational-thinking/SKILL.md",
+      "invocation": "user-only"
+    },
+    {
+      "package": "pstack",
+      "name": "dwb-pstack-principle-fix-root-causes",
+      "upstream_name": "principle-fix-root-causes",
+      "path": ".local/engineering-stack/sources/pstack/pstack/skills/principle-fix-root-causes/SKILL.md",
+      "invocation": "user-only"
+    },
+    {
+      "package": "pstack",
+      "name": "dwb-pstack-principle-explain-the-number",
+      "upstream_name": "principle-explain-the-number",
+      "path": ".local/engineering-stack/sources/pstack/pstack/skills/principle-explain-the-number/SKILL.md",
+      "invocation": "user-only"
+    },
+    {
+      "package": "pstack",
+      "name": "dwb-pstack-principle-experience-first",
+      "upstream_name": "principle-experience-first",
+      "path": ".local/engineering-stack/sources/pstack/pstack/skills/principle-experience-first/SKILL.md",
+      "invocation": "user-only"
+    },
+    {
+      "package": "pstack",
+      "name": "dwb-pstack-principle-never-block-on-the-human",
+      "upstream_name": "principle-never-block-on-the-human",
+      "path": ".local/engineering-stack/sources/pstack/pstack/skills/principle-never-block-on-the-human/SKILL.md",
+      "invocation": "user-only"
+    },
+    {
+      "package": "pstack",
+      "name": "dwb-pstack-principle-exhaust-the-design-space",
+      "upstream_name": "principle-exhaust-the-design-space",
+      "path": ".local/engineering-stack/sources/pstack/pstack/skills/principle-exhaust-the-design-space/SKILL.md",
+      "invocation": "user-only"
+    },
+    {
+      "package": "pstack",
+      "name": "dwb-pstack-show-me-your-work",
+      "upstream_name": "show-me-your-work",
+      "path": ".local/engineering-stack/sources/pstack/pstack/skills/show-me-your-work/SKILL.md",
+      "invocation": "user-only"
+    },
+    {
+      "package": "pstack",
+      "name": "dwb-pstack-swarm",
+      "upstream_name": "swarm",
+      "path": ".local/engineering-stack/sources/pstack/pstack/skills/swarm/SKILL.md",
+      "invocation": "user-only"
+    },
+    {
+      "package": "cursor-team-kit",
+      "name": "dwb-kit-weekly-review",
+      "upstream_name": "weekly-review",
+      "path": ".local/engineering-stack/sources/pstack/cursor-team-kit/skills/weekly-review/SKILL.md",
+      "invocation": "model-and-user"
+    },
+    {
+      "package": "cursor-team-kit",
+      "name": "dwb-kit-verify-this",
+      "upstream_name": "verify-this",
+      "path": ".local/engineering-stack/sources/pstack/cursor-team-kit/skills/verify-this/SKILL.md",
+      "invocation": "model-and-user"
+    },
+    {
+      "package": "cursor-team-kit",
+      "name": "dwb-kit-thermo-nuclear-code-quality-review",
+      "upstream_name": "thermo-nuclear-code-quality-review",
+      "path": ".local/engineering-stack/sources/pstack/cursor-team-kit/skills/thermo-nuclear-code-quality-review/SKILL.md",
+      "invocation": "user-only"
+    },
+    {
+      "package": "cursor-team-kit",
+      "name": "dwb-kit-run-smoke-tests",
+      "upstream_name": "run-smoke-tests",
+      "path": ".local/engineering-stack/sources/pstack/cursor-team-kit/skills/run-smoke-tests/SKILL.md",
+      "invocation": "model-and-user"
+    },
+    {
+      "package": "cursor-team-kit",
+      "name": "dwb-kit-review-and-ship",
+      "upstream_name": "review-and-ship",
+      "path": ".local/engineering-stack/sources/pstack/cursor-team-kit/skills/review-and-ship/SKILL.md",
+      "invocation": "model-and-user"
+    },
+    {
+      "package": "cursor-team-kit",
+      "name": "dwb-kit-pr-review-canvas",
+      "upstream_name": "pr-review-canvas",
+      "path": ".local/engineering-stack/sources/pstack/cursor-team-kit/skills/pr-review-canvas/SKILL.md",
+      "invocation": "user-only"
+    },
+    {
+      "package": "cursor-team-kit",
+      "name": "dwb-kit-new-branch-and-pr",
+      "upstream_name": "new-branch-and-pr",
+      "path": ".local/engineering-stack/sources/pstack/cursor-team-kit/skills/new-branch-and-pr/SKILL.md",
+      "invocation": "model-and-user"
+    },
+    {
+      "package": "cursor-team-kit",
+      "name": "dwb-kit-make-pr-easy-to-review",
+      "upstream_name": "make-pr-easy-to-review",
+      "path": ".local/engineering-stack/sources/pstack/cursor-team-kit/skills/make-pr-easy-to-review/SKILL.md",
+      "invocation": "model-and-user"
+    },
+    {
+      "package": "cursor-team-kit",
+      "name": "dwb-kit-loop-on-ci",
+      "upstream_name": "loop-on-ci",
+      "path": ".local/engineering-stack/sources/pstack/cursor-team-kit/skills/loop-on-ci/SKILL.md",
+      "invocation": "model-and-user"
+    },
+    {
+      "package": "cursor-team-kit",
+      "name": "dwb-kit-get-pr-comments",
+      "upstream_name": "get-pr-comments",
+      "path": ".local/engineering-stack/sources/pstack/cursor-team-kit/skills/get-pr-comments/SKILL.md",
+      "invocation": "model-and-user"
+    },
+    {
+      "package": "pstack",
+      "name": "dwb-pstack-statechart",
+      "upstream_name": "statechart",
+      "path": ".local/engineering-stack/sources/pstack/pstack/skills/statechart/SKILL.md",
+      "invocation": "user-only"
+    },
+    {
+      "package": "cursor-team-kit",
+      "name": "dwb-kit-fix-merge-conflicts",
+      "upstream_name": "fix-merge-conflicts",
+      "path": ".local/engineering-stack/sources/pstack/cursor-team-kit/skills/fix-merge-conflicts/SKILL.md",
+      "invocation": "model-and-user"
+    },
+    {
+      "package": "cursor-team-kit",
+      "name": "dwb-kit-deslop",
+      "upstream_name": "deslop",
+      "path": ".local/engineering-stack/sources/pstack/cursor-team-kit/skills/deslop/SKILL.md",
+      "invocation": "model-and-user"
+    },
+    {
+      "package": "cursor-team-kit",
+      "name": "dwb-kit-control-ui",
+      "upstream_name": "control-ui",
+      "path": ".local/engineering-stack/sources/pstack/cursor-team-kit/skills/control-ui/SKILL.md",
+      "invocation": "model-and-user"
+    },
+    {
+      "package": "cursor-team-kit",
+      "name": "dwb-kit-control-cli",
+      "upstream_name": "control-cli",
+      "path": ".local/engineering-stack/sources/pstack/cursor-team-kit/skills/control-cli/SKILL.md",
+      "invocation": "model-and-user"
+    },
+    {
+      "package": "cursor-team-kit",
+      "name": "dwb-kit-check-compiler-errors",
+      "upstream_name": "check-compiler-errors",
+      "path": ".local/engineering-stack/sources/pstack/cursor-team-kit/skills/check-compiler-errors/SKILL.md",
+      "invocation": "model-and-user"
+    },
+    {
+      "package": "pstack",
+      "name": "dwb-pstack-why",
+      "upstream_name": "why",
+      "path": ".local/engineering-stack/sources/pstack/pstack/skills/why/SKILL.md",
+      "invocation": "user-only"
+    },
+    {
+      "package": "pstack",
+      "name": "dwb-pstack-unslop",
+      "upstream_name": "unslop",
+      "path": ".local/engineering-stack/sources/pstack/pstack/skills/unslop/SKILL.md",
+      "invocation": "user-only"
+    },
+    {
+      "package": "pstack",
+      "name": "dwb-pstack-typescript-best-practices",
+      "upstream_name": "typescript-best-practices",
+      "path": ".local/engineering-stack/sources/pstack/pstack/skills/typescript-best-practices/SKILL.md",
+      "invocation": "user-only"
+    },
+    {
+      "package": "pstack",
+      "name": "dwb-pstack-technical-writing",
+      "upstream_name": "technical-writing",
+      "path": ".local/engineering-stack/sources/pstack/pstack/skills/technical-writing/SKILL.md",
+      "invocation": "user-only"
+    },
+    {
+      "package": "pstack",
+      "name": "dwb-pstack-teach",
+      "upstream_name": "teach",
+      "path": ".local/engineering-stack/sources/pstack/pstack/skills/teach/SKILL.md",
+      "invocation": "user-only"
+    },
+    {
+      "package": "pstack",
+      "name": "dwb-pstack-tdd",
+      "upstream_name": "tdd",
+      "path": ".local/engineering-stack/sources/pstack/pstack/skills/tdd/SKILL.md",
+      "invocation": "user-only"
+    },
+    {
+      "package": "cursor-team-kit",
+      "name": "dwb-kit-fix-ci",
+      "upstream_name": "fix-ci",
+      "path": ".local/engineering-stack/sources/pstack/cursor-team-kit/skills/fix-ci/SKILL.md",
+      "invocation": "model-and-user"
+    },
+    {
+      "package": "cursor-team-kit",
+      "name": "dwb-kit-what-did-i-get-done",
+      "upstream_name": "what-did-i-get-done",
+      "path": ".local/engineering-stack/sources/pstack/cursor-team-kit/skills/what-did-i-get-done/SKILL.md",
+      "invocation": "model-and-user"
+    },
+    {
+      "package": "pstack",
+      "name": "dwb-pstack-principle-encode-lessons-in-structure",
+      "upstream_name": "principle-encode-lessons-in-structure",
+      "path": ".local/engineering-stack/sources/pstack/pstack/skills/principle-encode-lessons-in-structure/SKILL.md",
+      "invocation": "user-only"
+    },
+    {
+      "package": "pstack",
+      "name": "dwb-pstack-principle-boundary-discipline",
+      "upstream_name": "principle-boundary-discipline",
+      "path": ".local/engineering-stack/sources/pstack/pstack/skills/principle-boundary-discipline/SKILL.md",
+      "invocation": "user-only"
+    },
+    {
+      "package": "pocock",
+      "name": "dwb-pocock-handoff",
+      "upstream_name": "handoff",
+      "path": ".local/engineering-stack/sources/pocock/skills/productivity/handoff/SKILL.md",
+      "invocation": "user-only"
+    },
+    {
+      "package": "pocock",
+      "name": "dwb-pocock-grilling",
+      "upstream_name": "grilling",
+      "path": ".local/engineering-stack/sources/pocock/skills/productivity/grilling/SKILL.md",
+      "invocation": "model-and-user"
+    },
+    {
+      "package": "pocock",
+      "name": "dwb-pocock-grill-me",
+      "upstream_name": "grill-me",
+      "path": ".local/engineering-stack/sources/pocock/skills/productivity/grill-me/SKILL.md",
+      "invocation": "user-only"
+    },
+    {
+      "package": "pocock",
+      "name": "dwb-pocock-wizard",
+      "upstream_name": "wizard",
+      "path": ".local/engineering-stack/sources/pocock/skills/engineering/wizard/SKILL.md",
+      "invocation": "model-and-user"
+    },
+    {
+      "package": "pocock",
+      "name": "dwb-pocock-wayfinder",
+      "upstream_name": "wayfinder",
+      "path": ".local/engineering-stack/sources/pocock/skills/engineering/wayfinder/SKILL.md",
+      "invocation": "user-only"
+    },
+    {
+      "package": "pocock",
+      "name": "dwb-pocock-triage",
+      "upstream_name": "triage",
+      "path": ".local/engineering-stack/sources/pocock/skills/engineering/triage/SKILL.md",
+      "invocation": "user-only"
+    },
+    {
+      "package": "pocock",
+      "name": "dwb-pocock-to-tickets",
+      "upstream_name": "to-tickets",
+      "path": ".local/engineering-stack/sources/pocock/skills/engineering/to-tickets/SKILL.md",
+      "invocation": "user-only"
+    },
+    {
+      "package": "pocock",
+      "name": "dwb-pocock-to-spec",
+      "upstream_name": "to-spec",
+      "path": ".local/engineering-stack/sources/pocock/skills/engineering/to-spec/SKILL.md",
+      "invocation": "user-only"
+    },
+    {
+      "package": "pocock",
+      "name": "dwb-pocock-tdd",
+      "upstream_name": "tdd",
+      "path": ".local/engineering-stack/sources/pocock/skills/engineering/tdd/SKILL.md",
+      "invocation": "model-and-user"
+    },
+    {
+      "package": "pocock",
+      "name": "dwb-pocock-setup-matt-pocock-skills",
+      "upstream_name": "setup-matt-pocock-skills",
+      "path": ".local/engineering-stack/sources/pocock/skills/engineering/setup-matt-pocock-skills/SKILL.md",
+      "invocation": "user-only"
+    },
+    {
+      "package": "pocock",
+      "name": "dwb-pocock-teach",
+      "upstream_name": "teach",
+      "path": ".local/engineering-stack/sources/pocock/skills/productivity/teach/SKILL.md",
+      "invocation": "user-only"
+    },
+    {
+      "package": "pocock",
+      "name": "dwb-pocock-retro",
+      "upstream_name": "retro",
+      "path": ".local/engineering-stack/sources/pocock/skills/engineering/retro/SKILL.md",
+      "invocation": "user-only"
+    },
+    {
+      "package": "pocock",
+      "name": "dwb-pocock-prototype",
+      "upstream_name": "prototype",
+      "path": ".local/engineering-stack/sources/pocock/skills/engineering/prototype/SKILL.md",
+      "invocation": "model-and-user"
+    },
+    {
+      "package": "pocock",
+      "name": "dwb-pocock-pr",
+      "upstream_name": "pr",
+      "path": ".local/engineering-stack/sources/pocock/skills/engineering/pr/SKILL.md",
+      "invocation": "model-and-user"
+    },
+    {
+      "package": "pocock",
+      "name": "dwb-pocock-improve-codebase-architecture",
+      "upstream_name": "improve-codebase-architecture",
+      "path": ".local/engineering-stack/sources/pocock/skills/engineering/improve-codebase-architecture/SKILL.md",
+      "invocation": "user-only"
+    },
+    {
+      "package": "pocock",
+      "name": "dwb-pocock-implement",
+      "upstream_name": "implement",
+      "path": ".local/engineering-stack/sources/pocock/skills/engineering/implement/SKILL.md",
+      "invocation": "user-only"
+    },
+    {
+      "package": "pocock",
+      "name": "dwb-pocock-implement-spec",
+      "upstream_name": "implement-spec",
+      "path": ".local/engineering-stack/sources/pocock/skills/engineering/implement-spec/SKILL.md",
+      "invocation": "user-only"
+    },
+    {
+      "package": "pocock",
+      "name": "dwb-pocock-grill-with-docs",
+      "upstream_name": "grill-with-docs",
+      "path": ".local/engineering-stack/sources/pocock/skills/engineering/grill-with-docs/SKILL.md",
+      "invocation": "user-only"
+    },
+    {
+      "package": "pocock",
+      "name": "dwb-pocock-domain-modeling",
+      "upstream_name": "domain-modeling",
+      "path": ".local/engineering-stack/sources/pocock/skills/engineering/domain-modeling/SKILL.md",
+      "invocation": "model-and-user"
+    },
+    {
+      "package": "pocock",
+      "name": "dwb-pocock-diagnosing-bugs",
+      "upstream_name": "diagnosing-bugs",
+      "path": ".local/engineering-stack/sources/pocock/skills/engineering/diagnosing-bugs/SKILL.md",
+      "invocation": "model-and-user"
+    },
+    {
+      "package": "pocock",
+      "name": "dwb-pocock-codebase-design",
+      "upstream_name": "codebase-design",
+      "path": ".local/engineering-stack/sources/pocock/skills/engineering/codebase-design/SKILL.md",
+      "invocation": "model-and-user"
+    },
+    {
+      "package": "pocock",
+      "name": "dwb-pocock-code-review",
+      "upstream_name": "code-review",
+      "path": ".local/engineering-stack/sources/pocock/skills/engineering/code-review/SKILL.md",
+      "invocation": "model-and-user"
+    },
+    {
+      "package": "pocock",
+      "name": "dwb-pocock-research",
+      "upstream_name": "research",
+      "path": ".local/engineering-stack/sources/pocock/skills/engineering/research/SKILL.md",
+      "invocation": "model-and-user"
+    },
+    {
+      "package": "pstack",
+      "name": "dwb-pstack-principle-build-the-lever",
+      "upstream_name": "principle-build-the-lever",
+      "path": ".local/engineering-stack/sources/pstack/pstack/skills/principle-build-the-lever/SKILL.md",
+      "invocation": "user-only"
+    },
+    {
+      "package": "pocock",
+      "name": "dwb-pocock-to-questionnaire",
+      "upstream_name": "to-questionnaire",
+      "path": ".local/engineering-stack/sources/pocock/skills/productivity/to-questionnaire/SKILL.md",
+      "invocation": "user-only"
+    },
+    {
+      "package": "pocock",
+      "name": "dwb-pocock-writing-for-agents",
+      "upstream_name": "writing-for-agents",
+      "path": ".local/engineering-stack/sources/pocock/skills/productivity/writing-for-agents/SKILL.md",
+      "invocation": "model-and-user"
+    },
+    {
+      "package": "pstack",
+      "name": "dwb-pstack-principle-attack-the-premise",
+      "upstream_name": "principle-attack-the-premise",
+      "path": ".local/engineering-stack/sources/pstack/pstack/skills/principle-attack-the-premise/SKILL.md",
+      "invocation": "user-only"
+    },
+    {
+      "package": "pstack",
+      "name": "dwb-pstack-poteto-mode",
+      "upstream_name": "poteto-mode",
+      "path": ".local/engineering-stack/sources/pstack/pstack/skills/poteto-mode/SKILL.md",
+      "invocation": "user-only"
+    },
+    {
+      "package": "pstack",
+      "name": "dwb-pstack-poteto-help",
+      "upstream_name": "poteto-help",
+      "path": ".local/engineering-stack/sources/pstack/pstack/skills/poteto-help/SKILL.md",
+      "invocation": "user-only"
+    },
+    {
+      "package": "pstack",
+      "name": "dwb-pstack-no-comments",
+      "upstream_name": "no-comments",
+      "path": ".local/engineering-stack/sources/pstack/pstack/skills/no-comments/SKILL.md",
+      "invocation": "user-only"
+    },
+    {
+      "package": "pstack",
+      "name": "dwb-pstack-make-bot-ui",
+      "upstream_name": "make-bot-ui",
+      "path": ".local/engineering-stack/sources/pstack/pstack/skills/make-bot-ui/SKILL.md",
+      "invocation": "user-only"
+    },
+    {
+      "package": "pstack",
+      "name": "dwb-pstack-maintain-verification-skill",
+      "upstream_name": "maintain-verification-skill",
+      "path": ".local/engineering-stack/sources/pstack/pstack/skills/maintain-verification-skill/SKILL.md",
+      "invocation": "user-only"
+    },
+    {
+      "package": "pstack",
+      "name": "dwb-pstack-maintain-formal-verification-skill",
+      "upstream_name": "maintain-formal-verification-skill",
+      "path": ".local/engineering-stack/sources/pstack/pstack/skills/maintain-formal-verification-skill/SKILL.md",
+      "invocation": "user-only"
+    },
+    {
+      "package": "pstack",
+      "name": "dwb-pstack-ketchup",
+      "upstream_name": "ketchup",
+      "path": ".local/engineering-stack/sources/pstack/pstack/skills/ketchup/SKILL.md",
+      "invocation": "user-only"
+    },
+    {
+      "package": "pstack",
+      "name": "dwb-pstack-ketchup-video",
+      "upstream_name": "ketchup-video",
+      "path": ".local/engineering-stack/sources/pstack/pstack/skills/ketchup-video/SKILL.md",
+      "invocation": "user-only"
+    },
+    {
+      "package": "pstack",
+      "name": "dwb-pstack-interrogate",
+      "upstream_name": "interrogate",
+      "path": ".local/engineering-stack/sources/pstack/pstack/skills/interrogate/SKILL.md",
+      "invocation": "user-only"
+    },
+    {
+      "package": "pocock",
+      "name": "dwb-pocock-wait-what",
+      "upstream_name": "wait-what",
+      "path": ".local/engineering-stack/sources/pocock/skills/productivity/wait-what/SKILL.md",
+      "invocation": "user-only"
+    },
+    {
+      "package": "pstack",
+      "name": "dwb-pstack-in-your-own-words",
+      "upstream_name": "in-your-own-words",
+      "path": ".local/engineering-stack/sources/pstack/pstack/skills/in-your-own-words/SKILL.md",
+      "invocation": "user-only"
+    },
+    {
+      "package": "pstack",
+      "name": "dwb-pstack-figure-it-out",
+      "upstream_name": "figure-it-out",
+      "path": ".local/engineering-stack/sources/pstack/pstack/skills/figure-it-out/SKILL.md",
+      "invocation": "user-only"
+    },
+    {
+      "package": "pstack",
+      "name": "dwb-pstack-create-verification-skill",
+      "upstream_name": "create-verification-skill",
+      "path": ".local/engineering-stack/sources/pstack/pstack/skills/create-verification-skill/SKILL.md",
+      "invocation": "user-only"
+    },
+    {
+      "package": "pstack",
+      "name": "dwb-pstack-create-formal-verification-skill",
+      "upstream_name": "create-formal-verification-skill",
+      "path": ".local/engineering-stack/sources/pstack/pstack/skills/create-formal-verification-skill/SKILL.md",
+      "invocation": "user-only"
+    },
+    {
+      "package": "pstack",
+      "name": "dwb-pstack-correct",
+      "upstream_name": "correct",
+      "path": ".local/engineering-stack/sources/pstack/pstack/skills/correct/SKILL.md",
+      "invocation": "user-only"
+    },
+    {
+      "package": "pstack",
+      "name": "dwb-pstack-bro",
+      "upstream_name": "bro",
+      "path": ".local/engineering-stack/sources/pstack/pstack/skills/bro/SKILL.md",
+      "invocation": "user-only"
+    },
+    {
+      "package": "pstack",
+      "name": "dwb-pstack-blast-radius",
+      "upstream_name": "blast-radius",
+      "path": ".local/engineering-stack/sources/pstack/pstack/skills/blast-radius/SKILL.md",
+      "invocation": "user-only"
+    },
+    {
+      "package": "pstack",
+      "name": "dwb-pstack-benchmark-checklist",
+      "upstream_name": "benchmark-checklist",
+      "path": ".local/engineering-stack/sources/pstack/pstack/skills/benchmark-checklist/SKILL.md",
+      "invocation": "user-only"
+    },
+    {
+      "package": "pstack",
+      "name": "dwb-pstack-automate-me",
+      "upstream_name": "automate-me",
+      "path": ".local/engineering-stack/sources/pstack/pstack/skills/automate-me/SKILL.md",
+      "invocation": "user-only"
+    },
+    {
+      "package": "pstack",
+      "name": "dwb-pstack-arena",
+      "upstream_name": "arena",
+      "path": ".local/engineering-stack/sources/pstack/pstack/skills/arena/SKILL.md",
+      "invocation": "user-only"
+    },
+    {
+      "package": "pstack",
+      "name": "dwb-pstack-architect",
+      "upstream_name": "architect",
+      "path": ".local/engineering-stack/sources/pstack/pstack/skills/architect/SKILL.md",
+      "invocation": "user-only"
+    },
+    {
+      "package": "pstack",
+      "name": "dwb-pstack-how",
+      "upstream_name": "how",
+      "path": ".local/engineering-stack/sources/pstack/pstack/skills/how/SKILL.md",
+      "invocation": "user-only"
+    },
+    {
+      "package": "cursor-team-kit",
+      "name": "dwb-kit-workflow-from-chats",
+      "upstream_name": "workflow-from-chats",
+      "path": ".local/engineering-stack/sources/pstack/cursor-team-kit/skills/workflow-from-chats/SKILL.md",
+      "invocation": "model-and-user"
+    }
+  ]
+}

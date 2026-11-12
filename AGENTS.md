@@ -28,6 +28,12 @@ Before source-package activation or dependency changes, read
 complete pinned source and reference closure. Proposed versions are not evidence
 of successful installation or activation.
 
+For engineering tasks, use the pinned project workflow in
+`docs/agents/engineering-stack.md`. It maps Pocock's decision workflow and
+PStack's playbooks to the verified project entrypoints and actual harness tools.
+Run the engineering-stack verifier before use. Preserve source resources and
+record unsupported steps rather than substituting older global skills.
+
 ### Runtime material
 
 Keep machine observations, credentials, raw sessions and clinical material in

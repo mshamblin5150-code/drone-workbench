@@ -1,7 +1,7 @@
 {
   "schema_version": "agent-hygiene.build-baseline.v1",
   "checked_date": "2026-11-12",
-  "status": "Exact source inventories and complete package blob downloads verified. Sources remain inactive; SDK installation, full NuGet transitive restore and updated compatibility/discovery are unverified gates.",
+  "status": "Original immutable sources verified. Project engineering environment now has a complete 1,346-file lock, project-scoped Codex entrypoints and Claude session plugin loading. See engineering-stack-verification.json for observed checks and capability limits. SDK11 installation and full NuGet restore remain separate gates.",
   "sources": [
     {
       "name": "Matt Pocock engineering package",
@@ -5413,8 +5413,18 @@
     "receipt": "source-verification.json",
     "verified_total_files": 757,
     "global_activation": false,
-    "project_adapter_discovery": "unverified",
+    "project_adapter_discovery": "Native Codex project skill metadata and Claude session plugin metadata verified; see engineering-stack-verification.json.",
     "literal_reference_census": "source-reference-audit.json",
     "project_glossary": "GLOSSARY.md; legacy CONTEXT.md mapped in project guidance"
+  },
+  "engineering_stack": {
+    "source_lock": "engineering-sources.lock.json",
+    "catalog": "engineering-catalog.json",
+    "compatibility": "../agents/engineering-stack.md",
+    "capabilities": "engineering-capabilities.json",
+    "verification": "engineering-stack-verification.json",
+    "guide": "use-engineering-stack.md",
+    "global_installations_changed": false,
+    "automations_or_hooks_registered": false
   }
 }

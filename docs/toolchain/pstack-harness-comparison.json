@@ -1,0 +1,52 @@
+{
+  "canonical_files": 573,
+  "claude_files": 559,
+  "same_blob_count": 533,
+  "changed_files": [
+    "README.md",
+    "docs/guide/07-overnight.md",
+    "skills/architect/SKILL.md",
+    "skills/arena/SKILL.md",
+    "skills/automate-me/SKILL.md",
+    "skills/create-formal-verification-skill/SKILL.md",
+    "skills/create-verification-skill/SKILL.md",
+    "skills/figure-it-out/SKILL.md",
+    "skills/how/SKILL.md",
+    "skills/interrogate/SKILL.md",
+    "skills/maintain-formal-verification-skill/SKILL.md",
+    "skills/maintain-verification-skill/SKILL.md",
+    "skills/make-bot-ui/SKILL.md",
+    "skills/no-comments/SKILL.md",
+    "skills/poteto-help/SKILL.md",
+    "skills/poteto-mode/SKILL.md",
+    "skills/principle-prove-it-works/SKILL.md",
+    "skills/recall/SKILL.md",
+    "skills/reflect/SKILL.md",
+    "skills/setup-pstack/SKILL.md",
+    "skills/show-me-your-work/SKILL.md",
+    "skills/swarm/SKILL.md",
+    "skills/teach/SKILL.md",
+    "skills/technical-writing/SKILL.md",
+    "skills/why/SKILL.md"
+  ],
+  "canonical_only": [
+    ".cursor-plugin/plugin.json",
+    ".gitignore",
+    "assets/logo.png",
+    "automations/benny/FOR_AGENTS.md",
+    "automations/benny/README.md",
+    "automations/benny/skills/reproduce-and-fix-issues/SKILL.md",
+    "automations/benny/skills/reproduce-and-fix-issues/references/control-adapter.md",
+    "automations/benny/skills/reproduce-and-fix-issues/references/feature-map.example.md",
+    "automations/benny/skills/reproduce-and-fix-issues/references/verify-existing-fix.md",
+    "automations/benny/skills/setup-benny/SKILL.md",
+    "automations/benny/skills/triage-issue-reports/SKILL.md",
+    "automations/benny/skills/triage-issue-reports/references/routing.example.md",
+    "automations/benny/templates/configuration.example.yaml",
+    "automations/benny/templates/reproduce-automation-prompt.md",
+    "automations/benny/templates/triage-automation-prompt.md"
+  ],
+  "claude_only": [
+    ".claude-plugin/plugin.json"
+  ]
+}
