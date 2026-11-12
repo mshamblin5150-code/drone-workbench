@@ -1,0 +1,131 @@
+{
+  "schema_version": 1,
+  "date": "2026-11-12",
+  "scope": "Codex-only, no model turns",
+  "checks": [
+    {
+      "name": "existing_default_endpoint",
+      "path_exists": false
+    },
+    {
+      "name": "existing_owner_handshake",
+      "kind": "unavailable",
+      "failure_type": "EOFError",
+      "proxy_exit_code": null
+    },
+    {
+      "name": "before_initialize",
+      "kind": "error",
+      "code": -32600,
+      "message": "Not initialized"
+    },
+    {
+      "name": "isolated_initialize",
+      "kind": "result",
+      "fields": [
+        "codexHome",
+        "platformFamily",
+        "platformOs",
+        "userAgent"
+      ]
+    },
+    {
+      "name": "duplicate_initialize",
+      "kind": "error",
+      "code": -32600,
+      "message": "Already initialized"
+    },
+    {
+      "name": "isolated_loaded_threads",
+      "kind": "result",
+      "fields": [
+        "data",
+        "nextCursor"
+      ],
+      "count": 0
+    },
+    {
+      "name": "unknown_turn_interrupt",
+      "kind": "error",
+      "code": -32600,
+      "message": "thread not found: 00000000-0000-0000-0000-000000000007"
+    },
+    {
+      "name": "synthetic_process_started",
+      "pid_observed": true,
+      "live_handle_wait": 258
+    },
+    {
+      "name": "wrong_process_terminate",
+      "kind": "error",
+      "code": -32600,
+      "message": "no active command/exec for process id \"not-the-owned-process\""
+    },
+    {
+      "name": "correct_process_survives_wrong_target",
+      "process_still_running": true
+    },
+    {
+      "name": "synthetic_terminate_ack",
+      "kind": "result",
+      "fields": []
+    },
+    {
+      "name": "synthetic_exec_terminal_response",
+      "kind": "result",
+      "fields": [
+        "exitCode",
+        "stderr",
+        "stdout"
+      ]
+    },
+    {
+      "name": "synthetic_process_exit_observed",
+      "process_handle_signaled": true
+    },
+    {
+      "name": "repeat_process_terminate",
+      "kind": "error",
+      "code": -32600,
+      "message": "no active command/exec for process id \"workbench-synthetic-process\""
+    },
+    {
+      "name": "isolated_server_teardown",
+      "exit_code": 0
+    },
+    {
+      "name": "custom_unix_listener",
+      "alive_after_one_second": true,
+      "socket_exists": true,
+      "exit_code": null
+    },
+    {
+      "name": "custom_unix_probe_exception",
+      "failure_type": "Empty"
+    },
+    {
+      "name": "custom_unix_teardown",
+      "exit_code": 1,
+      "os_error_10050": false,
+      "private_directory_rejected": false
+    }
+  ],
+  "cli_version": "codex-cli 0.167.0-alpha.4.1",
+  "executable_sha256": "83f5c2dd2ac2902e0d96ba5d8ccdd27d513f57df4a9ab73e06a5a518028e9a2f",
+  "generated_schema_inventory": {
+    "file_count": 326,
+    "sha256": "3e529c723a98a9357171ef37607e3cf9299b26858b372f4f47f4d48ed2c68169"
+  },
+  "existing_owner_diagnostic": {
+    "daemon_version_exit_code": 1,
+    "windows_os_error": 10050,
+    "default_socket_present": false
+  },
+  "scope_limits": [
+    "No model turns",
+    "No real workload controls",
+    "No existing owner connection demonstrated",
+    "No disconnected active-work recovery demonstrated",
+    "No descendant-tree exit claim"
+  ]
+}
