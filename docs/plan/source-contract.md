@@ -31,8 +31,9 @@ interface ISourceAdapter
 
 Activity calls `ObserveAsync` and passes each batch to
 `IActivity.ObserveAsync`. Activity alone builds a `VerifiedControl` after its
-own checks. An adapter cannot mint a `VerifiedControl`, and a batch cannot
-carry one.
+own checks. `VerifiedControl` carries the exact `WorkKey`, source generation,
+expected incarnation and required state for atomic source enforcement. An adapter
+cannot mint a `VerifiedControl`, and a batch cannot carry one.
 
 ## Terms
 
@@ -53,7 +54,7 @@ update for the owner, not part of this proposal.
 | `ControlReference` | Source-local handle used to send a control | Carries `ReferenceScope`, either `SourceStable` or `ConnectionScoped(connectionGeneration)`. Claude short `id` is `SourceStable` and must equal the leading characters of the observed `sessionId`. A Codex `command/exec` `processId` is `ConnectionScoped` and becomes invalid on reconnect |
 | `ProcessIncarnation` | One operating-system process lifetime | `(pid, creationTimeUtc)`. A PID alone never identifies work. A new incarnation for the same `WorkKey` is a restart, not new work |
 | `Association` | Link between a `WorkKey` and a `ProcessIncarnation`, project or publication | Carries its evidence (`AgentViewPid`, `ParentProcessChain`, `HookSession`, `PublisherClaim`). Association is never ownership |
-| `OwnershipEvidence` | Why a source instance is responsible for a work item | For a Claude background session, the agent view of the current Windows user's configuration root lists it as `kind=background` with a short `id`, and its incarnation runs as the same Windows user. Association alone never sets it |
+| `OwnershipEvidence` | Why a source instance is responsible for a work item | For a Claude background session, the agent view of the current Windows user's configuration root lists it as `kind=background` with a short `id`, and its incarnation runs as the same Windows user. Association alone never sets it. A stopped-target no-op retains validated same-user ownership evidence from its prior incarnation, bound to this exact work and source, and requires a fresh stopped observation in the current generation. Missing ownership evidence refuses the no-op too |
 | `ProjectRef` | Workbench project identity | Resolved from a source working directory through the private local mapping, then the directory is discarded. Unresolved work is `Unassigned`, not dropped |
 
 A Claude interactive session and a desktop-owned session have no short `id`.
@@ -156,10 +157,14 @@ Rules:
 - `CoverageLevel.Unreachable` describes an entrypoint. `SourceState.Unavailable`
   describes a source instance. They are different fields.
 - A source version change sets every control to `Enabled=false` with
-  `DisabledReason.VersionChanged` until the conformance fixture passes again on
-  the new version. Observation keeps working and shows the version change.
+  `DisabledReason.VersionChanged` until a supported conditional route and its
+  conformance evidence are re-established on the new version. A source restart invalidates generation-bound
+  dispatch authorization. Neither restart nor conformance can enable a route
+  that lacks atomic preconditions. Observation continues and shows the version
+  change.
 - `VerifiedFor` lists the target conditions the evidence covers, such as `Idle`.
-  Activity refuses a control when the target's current state is not listed.
+  Activity refuses dispatch when the target's current state is not listed.
+  The zero-dispatch `AlreadyStopped` observation path below is separate.
 - An entrypoint with no route says so in `GapReason`. Missing coverage never
   becomes an empty work list.
 
@@ -169,7 +174,7 @@ Rules:
 
 | Action | Source | Target | Current evidence |
 | --- | --- | --- | --- |
-| `StopBackgroundSession` | Claude | `Session` with entrypoint `Background`, a `SourceStable` reference and `OwnershipEvidence` | Observed in ticket 7 for idle synthetic sessions on CLI 2.1.312. `Verified` only after the CA5 conformance run. `Busy` unverified |
+| `StopBackgroundSession` | Claude | `Session` with entrypoint `Background`, a `SourceStable` reference and `OwnershipEvidence` | Native session-scoped stop observed in ticket 7 on CLI 2.1.312. Workbench `Enabled=false`, `NoConditionalDispatch`, with no dispatch conditions in `VerifiedFor`. No supported atomic route established |
 | `TerminateOwnedCommand` | Codex | `Command` on a Workbench-owned server | Observed in ticket 7 for a synthetic sleeper on CLI 0.167.0-alpha.4.1. No Workbench conformance yet |
 | `InterruptTurn` | Codex | `Turn` | Unverified. Disabled |
 
@@ -177,12 +182,32 @@ No action targets an interactive or desktop-owned Claude session, a Codex
 desktop thread, a name, a partial name, or a bare process. Read-only process
 visibility never enables termination.
 
-`StopBackgroundSession` acts on the current user's background sessions,
+When its dispatch requirements are met, `StopBackgroundSession` acts on the current user's background sessions,
 including ones started outside Workbench, because the first release promises
 verified controls for PC-wide work. The gate requires `OwnershipEvidence` for
 the target. The proposed default caller scope is the authenticated dashboard
 operator only. Drone reporting scope and the CLI cannot stop sessions. Letting
 drones request stops is a separate owner decision.
+
+### Dispatch authority
+
+A dispatch must atomically bind the exact `WorkKey`, source generation,
+`ProcessIncarnation` and required state, including `Idle` when that is the
+verified condition. A source-stable session reference alone grants no authority
+over a replacement incarnation.
+
+The observed `claude stop <short id>` route cannot enforce those preconditions
+atomically. Workbench therefore keeps it disabled with `NoConditionalDispatch`
+and sends no stop command, even for a fresh, owned, idle target. Rechecking,
+holding the old process handle, source acknowledgement, or another conformance
+run against that unconditional command cannot close the race or guarantee that
+a replacement stays untouched. No alternate conditional Claude API is established.
+
+Enabling real dispatch requires an actually supported source route that enforces
+all those preconditions atomically, plus conformance proof on that source
+version. A broader session-scoped authority model requires a separately
+authorized future policy change. Verified PC-wide controls remain a product
+requirement, with this gap explicit until one of those conditions is met.
 
 ### Receipt stages
 
@@ -190,6 +215,7 @@ Activity persists each stage with its `ObservedAt` before it reports the stage.
 
 ```text
 Requested -> Refused                                     (terminal)
+Requested -> NoActionNeeded(AlreadyStopped)               (terminal, zero dispatch)
 Requested -> Accepted -> Dispatched -> SourceAcknowledged | SourceRejected | DeliveryUnknown
 SourceAcknowledged | DeliveryUnknown -> OutcomeVerified | OutcomeNotObserved | OutcomeContradicted
 SourceRejected -> OutcomeVerified | OutcomeNotObserved    (reconciliation only)
@@ -202,11 +228,12 @@ never implies the source outcome.
 
 | Stage | Meaning |
 | --- | --- |
-| `Requested` | A caller asked. Carries a client `RequestId` and the `ProcessIncarnation` the caller saw. A different current incarnation gives `Refused(IncarnationChanged)` |
-| `Refused` | The gate refused before dispatch. Carries a `RefusalReason` such as `NoSupportedRoute`, `NoOwnershipEvidence`, `TargetConditionUnverified`, `StaleTarget`, `IncarnationChanged`, `CallerScope` or `VersionChanged`. Nothing was sent to the source |
-| `Accepted` | Activity rechecked identity, ownership evidence, freshness, capability, target condition, reference scope and caller scope, and recorded the target's prior state and incarnation |
+| `Requested` | A caller asked. Carries a client `RequestId` and exact `WorkKey`. A dispatch request also carries the `ProcessIncarnation` the caller saw. A different current incarnation gives `Refused(IncarnationChanged)` |
+| `Refused` | The gate refused before dispatch. Carries a `RefusalReason` such as `NoSupportedRoute`, `NoConditionalDispatch`, `NoOwnershipEvidence`, `TargetConditionUnverified`, `StaleTarget`, `IncarnationChanged`, `CallerScope` or `VersionChanged`. Nothing was sent to the source |
+| `NoActionNeeded` | `AlreadyStopped` is a fresh validated observation for an authenticated operator and exact owned `WorkKey`, with no current live incarnation. No live handle is required. No source command runs and no later receipt stage follows |
+| `Accepted` | A supported conditional route exists. Activity rechecked identity, ownership evidence, freshness, capability, target condition, reference scope and caller scope, and recorded the target's prior state and incarnation |
 | `Dispatched` | The adapter started the source command or request |
-| `SourceAcknowledged` | The source reported success. For Claude this can also mean the session was already stopped |
+| `SourceAcknowledged` | A supported dispatched request received source success. This is not the Workbench `AlreadyStopped` path |
 | `SourceRejected` | The source refused, with a classified reason such as `NoMatchingJob` |
 | `DeliveryUnknown` | Timeout, crash or lost reply after dispatch |
 | `OutcomeVerified` | The source's own view matches the intent. For a Claude stop this is `state=stopped` in the `--all` agent view and no live incarnation listed. The `ProcessExit` records are reported beside it |
@@ -215,16 +242,24 @@ never implies the source outcome.
 
 ### Retry and attribution
 
-- The same `RequestId` returns the existing receipt. It never dispatches again.
+- For an authenticated caller authorized to read the receipt, the same `RequestId`
+  returns the existing receipt. It never dispatches again.
 - After `DeliveryUnknown`, Activity runs `ReconcileAsync` first. It dispatches
   a new attempt only on a new `RequestId`, and only when the target incarnation
   still matches the recorded one. An attached or respawned session is a new
   target.
-- A Claude stop whose prior state was already `Stopped` reports "already
-  stopped". It never reports that Workbench stopped the session.
-- A Codex repeat terminate is `SourceRejected`. A Claude repeat stop is
-  `SourceAcknowledged`. Views show the classified result, not a shared success
-  flag.
+- For a new request on stopped work, validate caller scope, exact `WorkKey`,
+  ownership, source generation and fresh stopped evidence with no live incarnation.
+  This is a snapshot result, not a promise that the session stays stopped.
+  Return terminal `NoActionNeeded(AlreadyStopped)` without `Accepted`, `Dispatched`
+  or `SourceAcknowledged`. Say "already stopped", never "Workbench stopped it".
+  Missing, stale or contradictory evidence refuses with its reason or remains
+  unknown. It never produces this no-op result.
+- A later restart requires a new request and all dispatch gates again. An old
+  no-op receipt never authorizes a new incarnation.
+- Native CLI repeat-stop success is a provider research fact only. It does not
+  translate into Workbench dispatch or acknowledgement. Codex repeat-terminate
+  rejection remains a distinct source result in provider fixtures.
 - Process kill is never a fallback route. The Claude fixture respawned after an
   external kill.
 

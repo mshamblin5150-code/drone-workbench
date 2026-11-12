@@ -13,8 +13,9 @@ request.
 
 ## Fixture rules
 
-- `P` scenarios feed synthetic agent-view or hook bytes to the parser. They need
-  no Claude process.
+- `P` scenarios use synthetic observations or controlled-fake adapter routes.
+  They need no Claude process. Conditional control fixtures prove the contract
+  only. They never establish a supported Claude route or provider conformance.
 - `S` scenarios start synthetic background sessions with `claude --bg` and no
   prompt. Each uses a per-session `--settings` file, `--setting-sources ""` and
   `--strict-mcp-config`, and the scenario removes its sessions with `claude rm`
@@ -78,8 +79,8 @@ request.
 | ID | Type | Given | When | Then | Evidence today | PR |
 | --- | --- | --- | --- | --- | --- | --- |
 | RS-1 | S | Workbench host restarts while synthetic sessions run | The first poll after restart completes | Existing `WorkKey`s are matched again. No duplicate work. `SourceGeneration` increments | Fresh re-query observed | CA3 |
-| RS-2 | S | Host restarts with a stop receipt in `Dispatched` | Activity resumes | The receipt is reconciled from observed state. No blind re-dispatch | Not tested | CA5 |
-| RS-3 | P | The reported Claude CLI version changes | The next `DescribeAsync` runs | Controls report `Enabled=false`, `VersionChanged`. Observation continues and shows the new version | Not tested | CA3 |
+| RS-2 | P | Host restarts with a controlled-fake stop receipt in `Dispatched` | Activity resumes | Reconcile the observed outcome and separate exit evidence. No blind re-dispatch. Source restart invalidates generation-bound authorization and never enables current CLI stop | Not tested | CA5 |
+| RS-3 | P | The reported Claude CLI version changes | The next `DescribeAsync` runs | Controls report `Enabled=false`, `VersionChanged`. Observation continues. Re-running unconditional stop conformance cannot enable controls. A supported conditional route and proof on that version remain required | Not tested | CA3 |
 | RS-4 | R | The Claude desktop app restarts | The adapter polls through the restart | Desktop sessions pass through `Stale` or `Unknown`, then match by `sessionId` or end. Never a silent drop | Unverified | CA3 |
 
 ## Hooks
@@ -97,18 +98,18 @@ request.
 
 | ID | Type | Given | When | Then | Evidence today | PR |
 | --- | --- | --- | --- | --- | --- | --- |
-| CT-1 | S | An idle synthetic background session | The operator caller requests a stop | Receipt reaches `Accepted`, `Dispatched`, `SourceAcknowledged` and `OutcomeVerified` from `state=stopped` in the `--all` view. Separately, the `ProcessExit` record for the recorded incarnation reads `Exited` | Observed outside Workbench | CA5 |
-| CT-2 | S | Two synthetic background sessions | A stop targets one | The other keeps its incarnation and state | Observed wrong-ID rejection | CA5 |
-| CT-3 | S | A session already stopped | A new stop request arrives | Receipt reports `SourceAcknowledged` with prior state `Stopped` and the view says "already stopped" | Observed idempotent stop | CA5 |
+| CT-1 | S | An idle synthetic background session on the current Claude CLI | The authenticated operator requests a stop | `Refused(NoConditionalDispatch)`, zero dispatch and no side effect. A separate conditional-route fixture verifies accepted, dispatched, acknowledged and outcome stages only when the fake atomically binds exact work, generation, incarnation and `Idle` | Native stop observed outside Workbench. No conditional route established | CA5 |
+| CT-2 | S | Two synthetic sessions, and a conditional-route fixture with a replacement race | One stop is requested | Current CLI dispatches nothing. The fake refuses changed incarnation, generation or required state atomically before a side effect. Neither replacement nor unrelated work is affected | Native wrong-ID rejection observed. Atomic guarantee unverified for Claude | CA5 |
+| CT-3 | S | Fresh validated stopped evidence for an exact owned `WorkKey`, no current live incarnation and an authenticated operator | A new stop request arrives | `Requested -> NoActionNeeded(AlreadyStopped)` is terminal with zero dispatch. No `Accepted`, `Dispatched` or `SourceAcknowledged`. The view says "already stopped", never that Workbench stopped it. No live handle is needed. Missing, stale or contradictory evidence refuses or remains unknown. A later restart requires a new fully gated request | Native repeat-stop success observed only as provider research | CA5 |
 | CT-4 | P | The same `RequestId` is submitted twice | Activity receives the second | It returns the first receipt and dispatches nothing | Not tested | CA1 |
-| CT-5 | P | A fake source reports a new incarnation under the same short ID after a stop was acknowledged | Verification runs | Receipt ends `OutcomeContradicted`. Respawn after a stop was never observed, so this is a fixture-only guard | Respawn observed only after external kill | CA5 |
+| CT-5 | P | A controlled-fake conditional route acknowledged a bound stop, then reports a new incarnation under the same short ID | Verification runs | Receipt ends `OutcomeContradicted`. Atomic replacement protection is tested separately before dispatch. Reconciliation does not retroactively prevent a side effect | Respawn observed only after external kill. No Claude conditional route established | CA5 |
 | CT-6 | R | A desktop or interactive session | The operator caller requests a stop through `IActivity.RequestControlAsync` | Receipt is `Refused(NoSupportedRoute)`. No source command runs | Not applicable | CA5 |
 | CT-7 | P | A name or partial name is supplied as a target | Activity validates | `Refused`. Only a verified `ControlReference` is accepted | Docs only | CA5 |
-| CT-8 | M | A busy synthetic background session | A stop is requested | `Refused(TargetConditionUnverified)` until a busy-stop conformance run passes. After it passes, descendant outcomes are reported per process | Unverified | CA5 |
-| CT-10 | S | A synthetic session was killed and is respawning | The operator requests a stop with the incarnation seen before the kill | During the gap, `Refused(TargetConditionUnverified)` because the state is `Restarting`. After respawn, `Refused(IncarnationChanged)` | Observed respawn after kill | CA5 |
+| CT-8 | P | A busy synthetic observation, and a fake target that changes from `Idle` to `Busy` at dispatch | A stop is requested | Current Claude route stays `Enabled=false` with `NoConditionalDispatch`. Fake conditional dispatch refuses the changed state atomically. Busy-stop research alone cannot enable current CLI control | Busy stop unverified. No conditional route established | CA5 |
+| CT-10 | P | A fixture changes incarnation, source generation or required `Idle` state between gate and dispatch | The conditional fake checks atomically | It refuses before any side effect. A later restart needs a new request and cannot reuse an old no-op receipt. Current CLI requests remain disabled regardless of local rechecks | Native respawn observed after kill. No atomic Claude route established | CA5 |
 | CT-11 | P | A drone reporting caller | It requests a stop | `Refused(CallerScope)` | Not applicable | CA5 |
 | CT-12 | P | A background entry from a configuration root that is not the current user's, or with no `OwnershipEvidence` | A stop is requested | `Refused(NoOwnershipEvidence)` | Not tested | CA5 |
-| CT-9 | P | Dispatch times out | Activity reconciles | `DeliveryUnknown`, then the observed outcome. A retry needs a new `RequestId` and an unchanged incarnation | Not tested | CA5 |
+| CT-9 | P | A controlled-fake conditional dispatch times out | Activity reconciles | `DeliveryUnknown`, then the observed outcome with separate process-exit evidence. No blind replay. A new attempt needs a new `RequestId` and all atomic route gates. Current Claude CLI still dispatches nothing | Not tested | CA5 |
 
 ## Filtering and summaries
 
@@ -128,4 +129,4 @@ request.
 | CX-1 | P | Codex desktop facts from the connection diagnosis | Contract fixtures are built | Desktop coverage is `Unreachable` with `NoSupportedEndpoint` and a process-presence count | Observed | CA1 |
 | CX-4 | P | A Codex desktop owner and a Workbench-owned server share one `CODEX_HOME` | Source instances are minted | They get two `SourceInstanceId`s, and neither's work appears under the other | Observed risk in the diagnosis | CA1 |
 | CX-2 | P | A Codex `ConnectionScoped` command reference | The connection generation changes | The reference is invalid and a control request is refused | Observed connection scope | CA1 |
-| CX-3 | P | Codex repeat terminate and Claude repeat stop fixtures | Receipts are classified | Codex gives `SourceRejected`. Claude gives `SourceAcknowledged` with prior state | Observed | CA1 |
+| CX-3 | P | Provider-only Codex repeat-terminate and native Claude repeat-stop fixtures, plus a Workbench stopped-target request | Receipts are classified | Provider facts retain rejection and acknowledgement respectively. Workbench returns terminal `NoActionNeeded(AlreadyStopped)` with zero dispatch and no stop attribution | Native provider results observed only | CA1 |

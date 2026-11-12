@@ -2,7 +2,7 @@
 
 This plan adds the shared [source contract](source-contract.md) and a Claude adapter to Workbench.
 The operator gets PC-wide Claude visibility, including desktop and externally started work, with every gap named.
-The rule is that Workbench shows what a source verifiably reports, and enables a control only where a synthetic run verified it.
+Workbench shows what a source verifiably reports. A control also needs a supported atomic route and version-specific conformance. Current Claude stop remains disabled.
 Codex executes the plan. The PR ids in order are CA1, CA2, CA3, CA4, CA5 and CA6.
 The [acceptance scenarios](claude-adapter-acceptance.md) define pass conditions. Execution waits for the operator's explicit go.
 
@@ -10,7 +10,7 @@ The [acceptance scenarios](claude-adapter-acceptance.md) define pass conditions.
 
 One box is one unit of work. Every box names the evidence that checks it. A nested box is a sub-step of the box above it. Check a box only when its evidence exists, a file, a log line, a screenshot, a test run, or a SHA. The body is a how-to. The appendices explain and record.
 
-The program runs `pstack/skills/poteto-mode/playbooks/autopilot-stack.md`. The operator merges every PR. CA1 to CA6 all stop at merge-ready.
+The proposed program runs `pstack/skills/poteto-mode/playbooks/autopilot-stack.md`. Its operator-only merge policy awaits owner confirmation before execution and does not replace current authorization. Under that proposal, CA1 to CA6 stop at merge-ready.
 
 Tests alone are not sufficient verification. A PR is verified only when its unit, live, and perf boxes are all checked.
 
@@ -24,7 +24,7 @@ Resolve every `pstack/...` path in this plan against `.local/engineering-stack/s
 - [ ] Confirm the prerequisites before any PR starts.
   - [ ] Run `pwsh -NoProfile -File tools/engineering-stack.ps1 -Action Verify` and record `verified` true, 4 packages and 103 skills.
   - [ ] Confirm the S0 toolchain slice has landed on `main`. It provides `global.json` with SDK 11.0.100, `Directory.Packages.props`, `packages.lock.json` and the `src/` and `tests/` projects named in the build plan. If it has not landed, stop and report. This plan does not install an SDK.
-  - [ ] Confirm `claude --version` prints `2.1.312 (Claude Code)`. On another version, record the version and treat every Claude control as unverified until CA5 conformance runs on it.
+  - [ ] Confirm `claude --version` prints `2.1.312 (Claude Code)`. On another version, record the version and disable every Claude control. CA5 conformance cannot enable unconditional stop on any version.
 - [ ] Read these from trunk at program start. Re-read them at every tick.
   - [ ] `git show origin/main:docs/plan/claude-adapter-plan.md`
   - [ ] `git show origin/main:docs/plan/source-contract.md`
@@ -62,7 +62,7 @@ Resolve every `pstack/...` path in this plan against `.local/engineering-stack/s
 - [ ] Run `dotnet build -warnaserror`, `dotnet format --verify-no-changes` and `dotnet test` with locked restore once before the PR-facing push. Push with hooks on.
 - [ ] Run `/deslop` before each commit and `/no-comments` before review. In Codex, apply Team Kit `deslop` to the diff and run PStack `no-comments` through its agent prompt in a fresh helper.
 - [ ] Triage every Bugbot and security-reviewer comment per `../references/bugbot-triage.md`. Skipped when the PR has no Bugbot check or comment.
-- [ ] Rebase onto current trunk before the code-ready report and babysit. Keep that merge base in fix rounds. Rebase again only at merge prep, on a `git merge-tree` conflict with trunk, on a CI failure that comes from a change on trunk, or when a known concurrent change to the same files lands.
+- [ ] Rebase the stack root onto current trunk and each child onto its parent branch's exact tip before the code-ready report and babysit. Keep that base in fix rounds. Rebase again at merge prep, on a conflict with that base, on a CI failure caused by a base change, or when a known concurrent change to the same files lands. A new parent head restacks its children. After a parent merges, move its child onto trunk per `playbooks/shipping.md`.
 - [ ] Before each commit, run `git diff --cached` through `CanaryScanner` from CA1 and confirm the diff holds no real path, session ID, name or PID.
 
 ### Verdict and merge, for every PR
@@ -125,16 +125,16 @@ Each live lane runs in its own local worktree at the PR head. Cursor cloud VMs a
 - [ ] Lane 5. Replay a PID reused with a new creation time. Save `ca1-pid-reuse.txt`. Pass when the old `WorkKey` stays `Ended` and gains no association.
 - [ ] Lane 6. Replay a duplicate `RequestId`. Save `ca1-duplicate-request.txt`. Pass when one receipt and one dispatch exist.
 - [ ] Lane 7. Replay a Codex reconnect with a live command reference. Save `ca1-codex-reconnect.txt`. Pass when the reference is rejected as stale.
-- [ ] Lane 8. Replay Claude and Codex repeat-control fixtures. Save `ca1-repeat-control.txt`. Pass when Claude reads `SourceAcknowledged` with prior state `Stopped` and Codex reads `SourceRejected`.
+- [ ] Lane 8. Replay Claude and Codex repeat-control fixtures. Save `ca1-repeat-control.txt`. Pass when a Workbench stopped-target request ends `NoActionNeeded(AlreadyStopped)` with zero dispatch, while provider-only repeat-control fixtures retain native Claude acknowledgement and Codex rejection without attributing a Workbench action.
 - [ ] Lane 9. Build a capability report for a version change. Save `ca1-version-change.txt`. Pass when every control reads `Enabled=false` with `VersionChanged` and observation stays enabled.
 - [ ] Lane 10. Build the Codex desktop coverage fixture. Save `ca1-codex-desktop.txt`. Pass when desktop reads `Unreachable` with `NoSupportedEndpoint`.
 
 **Verify, perf.** Tests alone are not sufficient verification. A PR is verified only when its unit, live, and perf boxes are all checked.
 
-- [ ] Metric. Time and allocations to apply one batch of 200 work items to a projection holding 10,000 items.
+- [ ] Metric. Batch-to-projection-ready latency, plus time and allocations to apply one batch of 200 work items to a projection holding 10,000 items.
 - [ ] Probe. A BenchmarkDotNet case in `tests/Workbench.Core.Tests/Activity/Contract/ReducerBenchmarks.cs`, run three times interleaved with a 100,000-item projection.
 - [ ] Baseline. Trunk has no reducer. Record that, then record the head value at 10,000 items first.
-- [ ] Rule. Fail when the 100,000-item time exceeds three times the 10,000-item time, which shows growth with history size. Report the absolute numbers to issue 9 without setting a budget.
+- [ ] Rule. Fail when the 100,000-item time exceeds three times the 10,000-item time, which shows growth with history size. Before this box passes or CA1 becomes merge-ready, select and record measured numeric absolute budgets in issue 9 for reducer time and allocations at both sizes, plus batch-to-projection-ready latency. The scaling ratio is supplementary. Missing budgets block acceptance.
 
 **Review gate.** None. CA1 is not review-gated.
 
@@ -142,8 +142,8 @@ Each live lane runs in its own local worktree at the PR head. Cursor cloud VMs a
 
 - [ ] Root's clean verdict at the exact head SHA.
 - [ ] Bugbot triage done.
-- [ ] Rebased onto current trunk after the verdict, patch-id unchanged.
-- [ ] The operator lands the stack bottom-up.
+- [ ] Rebase the root onto current trunk, or this child onto its parent branch's exact tip. Preserve the verdict only when `git patch-id` is unchanged. Otherwise obtain fresh review and a verdict at the new head.
+- [ ] The operator lands the stack bottom-up under the confirmed execution policy.
 
 ## Parse the Claude agent view through an allowlist (CA2)
 
@@ -187,10 +187,10 @@ Each live lane runs in its own local worktree at the PR head. Cursor cloud VMs a
 
 **Verify, perf.** Tests alone are not sufficient verification. A PR is verified only when its unit, live, and perf boxes are all checked.
 
-- [ ] Metric. Parse time and allocations for a 50-entry agent view.
+- [ ] Metric. Parse time, allocations and input-to-safe-batch latency for a 50-entry agent view.
 - [ ] Probe. A BenchmarkDotNet case in `AgentViewParserBenchmarks.cs`, interleaved with a 500-entry input.
 - [ ] Baseline. Trunk has no parser. Record that, then record the 50-entry head value first.
-- [ ] Rule. Fail when allocations per entry at 500 exceed allocations per entry at 50 by more than 50 percent. Report absolute numbers to issue 9.
+- [ ] Rule. Fail when allocations per entry at 500 exceed allocations per entry at 50 by more than 50 percent. Before this box passes or CA2 becomes merge-ready, select and record measured numeric absolute budgets in issue 9 for parse time and allocations at both sizes, plus input-to-safe-batch latency. The allocation ratio is supplementary. Missing budgets block acceptance.
 
 **Review gate.** None. CA2 is not review-gated.
 
@@ -198,8 +198,8 @@ Each live lane runs in its own local worktree at the PR head. Cursor cloud VMs a
 
 - [ ] Root's clean verdict at the exact head SHA.
 - [ ] Bugbot triage done.
-- [ ] Rebased onto current trunk after the verdict, patch-id unchanged.
-- [ ] The operator lands the stack bottom-up.
+- [ ] Rebase the root onto current trunk, or this child onto its parent branch's exact tip. Preserve the verdict only when `git patch-id` is unchanged. Otherwise obtain fresh review and a verdict at the new head.
+- [ ] The operator lands the stack bottom-up under the confirmed execution policy.
 
 ## Observe Claude sessions PC-wide with process identity (CA3)
 
@@ -248,10 +248,10 @@ Each live lane runs in its own local worktree at the PR head. Cursor cloud VMs a
 
 **Verify, perf.** Tests alone are not sufficient verification. A PR is verified only when its unit, live, and perf boxes are all checked.
 
-- [ ] Metric. Wall time, CPU time and peak working set of one poll cycle, including the `claude agents` child process and process identity reads.
+- [ ] Metric. Wall time, CPU time and peak working set of one poll cycle, including the `claude agents` child process and process identity reads, plus source-change-to-projection latency.
 - [ ] Probe. Run 30 poll cycles with 0, 3 and 10 synthetic background sessions, interleaved, and record each value.
 - [ ] Baseline. Trunk has no poller. Record that, then record the 0-session head value first.
-- [ ] Rule. Record the poll interval used for the run in the capture. It is a run parameter, not a budget. Fail when any poll cycle takes longer than that interval or when CPU time grows faster than linearly in session count. Report all numbers to issue 9 so the operator can set the budget.
+- [ ] Rule. Record the poll interval used for the run in the capture. It is a run parameter, not a budget. Fail when any poll cycle takes longer than that interval or when CPU time grows faster than linearly in session count. Before this box passes or CA3 becomes merge-ready, select and record measured numeric absolute budgets in issue 9 for poll wall time, CPU and peak working set, plus source-change-to-projection latency. The interval and scaling rules are supplementary. Missing budgets block acceptance.
 
 **Review gate.** None. CA3 is not review-gated.
 
@@ -259,8 +259,8 @@ Each live lane runs in its own local worktree at the PR head. Cursor cloud VMs a
 
 - [ ] Root's clean verdict at the exact head SHA.
 - [ ] Bugbot triage done.
-- [ ] Rebased onto current trunk after the verdict, patch-id unchanged.
-- [ ] The operator lands the stack bottom-up.
+- [ ] Rebase the root onto current trunk, or this child onto its parent branch's exact tip. Preserve the verdict only when `git patch-id` is unchanged. Otherwise obtain fresh review and a verdict at the new head.
+- [ ] The operator lands the stack bottom-up under the confirmed execution policy.
 
 ## Accept optional Claude lifecycle hooks (CA4)
 
@@ -306,10 +306,10 @@ Each live lane runs in its own local worktree at the PR head. Cursor cloud VMs a
 
 **Verify, perf.** Tests alone are not sufficient verification. A PR is verified only when its unit, live, and perf boxes are all checked.
 
-- [ ] Metric. Wall time of `drone-workbench hook claude` from start to exit, with the host present and absent.
+- [ ] Metric. Hook process wall time, CPU and peak working set with the host present and absent, plus event-to-host-visible-state latency when present.
 - [ ] Probe. Run the verb 50 times per case with the `SessionStart` fixture, interleaved.
 - [ ] Baseline. Trunk has no verb. Record that, then record the host-present value first.
-- [ ] Rule. Fail when any run with the host absent exceeds the verb's own send timeout plus process start time. Report the numbers to issue 9.
+- [ ] Rule. Before this box passes or CA4 becomes merge-ready, select and record measured numeric absolute budgets in issue 9 for hook wall time, CPU and peak working set in both cases, plus event-to-host-visible-state latency. Missing budgets block acceptance. Record a numeric send timeout within those budgets. An unspecified timeout plus start time is not an acceptance gate.
 
 **Review gate.** None. CA4 is not review-gated.
 
@@ -317,10 +317,10 @@ Each live lane runs in its own local worktree at the PR head. Cursor cloud VMs a
 
 - [ ] Root's clean verdict at the exact head SHA.
 - [ ] Bugbot triage done.
-- [ ] Rebased onto current trunk after the verdict, patch-id unchanged.
-- [ ] The operator lands the stack bottom-up.
+- [ ] Rebase the root onto current trunk, or this child onto its parent branch's exact tip. Preserve the verdict only when `git patch-id` is unchanged. Otherwise obtain fresh review and a verdict at the new head.
+- [ ] The operator lands the stack bottom-up under the confirmed execution policy.
 
-## Stop Claude background sessions with verified outcomes (CA5)
+## Gate Claude controls and reconcile verified outcomes (CA5)
 
 **Depends on.** CA3 and the S1 store.
 
@@ -333,49 +333,49 @@ Each live lane runs in its own local worktree at the PR head. Cursor cloud VMs a
 
 **Build.**
 
-- [ ] `ControlGate` rechecks target identity, `OwnershipEvidence`, freshness, `ControlCapability.Enabled`, `VerifiedFor` against the current state, the incarnation the caller saw, reference scope and caller scope. It persists `Refused` with a reason, or `Accepted` with the prior state and incarnation. The only permitted caller scope is the authenticated dashboard operator.
-- [ ] `BackgroundStopRoute` opens a synchronize handle on the recorded incarnation, then runs `claude stop <short id>` with an argument list. It classifies exit 0 as `SourceAcknowledged` and `No job matching` as `SourceRejected(NoMatchingJob)`.
-- [ ] `StopOutcomeVerifier` reads the `--all` view for the outcome and waits on the handle for a separate `ProcessExit` record. It reports `OutcomeVerified`, `OutcomeNotObserved` or `OutcomeContradicted` when a new incarnation appears under the same short ID. The verification window is a configured run parameter recorded on each receipt.
-- [ ] Never call `claude rm`, `kill`, `respawn`, `attach`, `logs` or `daemon stop`. Never terminate a process directly.
-- [ ] Persist the conformance receipt for the CLI version that passed lanes 2 to 6, and enable `StopBackgroundSession` only for `Idle` until a busy run passes.
+- [ ] `ControlGate` authenticates the caller and first returns the existing authorized receipt for a duplicate `RequestId`. For a new request it validates authenticated operator scope, exact `WorkKey`, ownership, generation and fresh evidence. A confirmed stopped target with no live incarnation ends `Requested -> NoActionNeeded(AlreadyStopped)`. Missing, stale or contradictory evidence refuses or remains unknown. This path needs no live handle and creates no dispatch stages.
+- [ ] For dispatch, recheck identity, freshness, incarnation, reference scope, capability and required state. Require a supported source route that atomically binds exact work, source generation, incarnation and state. `BackgroundStopRoute` refuses the current `claude stop <short id>` route with `NoConditionalDispatch`. Never invoke it through Workbench. Handles, rechecks and post-dispatch acknowledgement cannot prevent its replacement race.
+- [ ] Keep `StopBackgroundSession` at `Enabled=false` with empty `VerifiedFor` and the gap `NoConditionalDispatch`. Version changes disable with `VersionChanged`. Source restarts invalidate generation-bound authorization. Neither event enables the route. Real dispatch remains blocked until an actually supported conditional route has version-specific conformance proof, or a separately authorized future policy change changes authority.
+- [ ] Implement dispatch receipt transitions and `StopOutcomeVerifier` through a controlled-fake conditional route only. The fake atomically rejects changed incarnation, generation or required state. After a fixture dispatch, reconcile source outcome separately from per-incarnation `ProcessExit`, including timeout, contradiction and restart without replay. Record the verification window on each receipt. Fake proof is contract evidence, never provider conformance.
+- [ ] Never call `claude rm`, `kill`, `respawn`, `attach`, `logs` or `daemon stop` from a control route. Never terminate a process directly. Native fixture preparation and cleanup remain separate from Workbench control.
 
 **You see.**
 
-- [ ] A stop on an idle synthetic session shows the receipt stages `Accepted`, `Dispatched`, `SourceAcknowledged` and `OutcomeVerified` with their timestamps.
+- [ ] A current-CLI idle-target request shows `Refused(NoConditionalDispatch)` and zero dispatch. Fresh stopped evidence shows terminal `NoActionNeeded(AlreadyStopped)`, never a claim that Workbench stopped it.
 
 **Verify, unit.** Tests alone are not sufficient verification. A PR is verified only when its unit, live, and perf boxes are all checked.
 
-- [ ] `ControlGateTests` covers CT-6, CT-7, CT-8 refusal, CT-11 and CT-12 with fakes. Run `dotnet test --filter ControlGateTests`.
-- [ ] `BackgroundStopRouteTests` covers CT-5, CT-9 and RS-2 with a fake process runner. Run `dotnet test --filter BackgroundStopRouteTests`.
+- [ ] `ControlGateTests` covers CT-1 through CT-4, CT-6 through CT-8 and CT-10 through CT-12, including missing or stale stopped evidence, replay and a later restart. Run `dotnet test --filter ControlGateTests`.
+- [ ] `BackgroundStopRouteTests` covers CT-5, CT-9 and RS-2 through the controlled-fake conditional route, plus atomic rejection when generation, incarnation or `Idle` changes at dispatch. Assert zero current-CLI dispatch. Run `dotnet test --filter BackgroundStopRouteTests`.
 
-**Verify, live.** Tests alone are not sufficient verification. A PR is verified only when its unit, live, and perf boxes are all checked. Ten lanes on `inherit-parent` at the PR head, per the boot recipe. Every target is a synthetic session started by `tools/fixtures/claude-synthetic.ps1`.
+**Verify, live.** Tests alone are not sufficient verification. A PR is verified only when its unit, live, and perf boxes are all checked. Ten lanes on `inherit-parent` at the PR head, per the boot recipe. Current-CLI lanes observe synthetic targets and exercise refusals or no-ops. Conditional dispatch lanes drive named fixture replays through `control-cli` and are not provider conformance.
 
-- [ ] Lane 1. Regression lane against trunk. Run CA3 lane 4 at trunk and head. Save `ca5-regression.txt`. Pass when observation matches and head adds the stop capability only to background entries with `OwnershipEvidence`, enabled for `Idle` only.
-- [ ] Lane 2. Stop one idle synthetic session as the operator caller (CT-1). Save `ca5-stop.txt`. Pass when the receipt reaches `OutcomeVerified` and its `ProcessExit` record reads `Exited`.
-- [ ] Lane 3. Start two sessions and stop one (CT-2). Save `ca5-exact-target.txt`. Pass when the other keeps its incarnation.
-- [ ] Lane 4. Stop the same session again with a new `RequestId` (CT-3). Save `ca5-already-stopped.txt`. Pass when the view says already stopped.
-- [ ] Lane 5. Submit the same `RequestId` twice (CT-4). Save `ca5-same-request.txt`. Pass when one dispatch occurred.
-- [ ] Lane 6. Kill a synthetic session with `-Kill`, then request a stop with the pre-kill incarnation during the gap and again after respawn (CT-10). Save `ca5-incarnation.txt`. Pass when the first receipt is `Refused(TargetConditionUnverified)` and the second is `Refused(IncarnationChanged)`.
-- [ ] Lane 7. Request a stop on a real desktop session through `IActivity.RequestControlAsync` as the operator caller (CT-6). Save `ca5-desktop-refused.txt`. Pass when the receipt is `Refused(NoSupportedRoute)` and no `claude` child process starts.
-- [ ] Lane 8. Request a stop by a partial name (CT-7). Save `ca5-name-refused.txt`. Pass when the gate refuses.
-- [ ] Lane 9. Restart the host with a receipt in `Dispatched` (RS-2). Save `ca5-reconcile.txt`. Pass when reconciliation records the observed outcome and no second dispatch.
-- [ ] Lane 10. Report the busy-stop gap (CT-8). Save `ca5-busy-gap.txt`. Pass when the capability reads `VerifiedFor=Idle` and the coverage view names busy stop as unverified pending model-turn authorization.
+- [ ] Lane 1. Regression lane against trunk. Run CA3 lane 4 at trunk and head. Save `ca5-regression.txt`. Pass when observation matches and head reports background stop disabled with `NoConditionalDispatch`.
+- [ ] Lane 2. Request a stop on an idle synthetic session as the operator caller (CT-1). Save `ca5-stop-disabled.txt`. Pass when `Refused(NoConditionalDispatch)` occurs, zero commands dispatch and its incarnation stays alive.
+- [ ] Lane 3. Start two sessions and request one stop (CT-2). Run the conditional-fixture exact-target replay too. Save `ca5-exact-target.txt`. Pass when the current CLI dispatches nothing and the fake cannot affect a replacement or the other work.
+- [ ] Lane 4. Prepare a stopped synthetic target with the native fixture, then submit a new request (CT-3). Save `ca5-already-stopped.txt`. Pass when fresh stopped evidence yields only terminal `NoActionNeeded(AlreadyStopped)` with zero dispatch and no Workbench-stop attribution.
+- [ ] Lane 5. Submit the same `RequestId` twice for refusal and no-op cases (CT-4). Save `ca5-same-request.txt`. Pass when each returns its existing receipt and total dispatch remains zero.
+- [ ] Lane 6. Replay a changed incarnation and a changed required state at the fake route's atomic dispatch boundary (CT-10). Save `ca5-incarnation.txt`. Pass when neither causes a side effect. Also verify current-CLI requests remain disabled.
+- [ ] Lane 7. Request a stop on a real desktop session through `IActivity.RequestControlAsync` as the operator caller (CT-6). Save `ca5-desktop-refused.txt`. Pass when `Refused(NoSupportedRoute)` occurs and no control child process starts.
+- [ ] Lane 8. Request a stop by partial name, as a drone caller, and without ownership evidence (CT-7, CT-11, CT-12). Save `ca5-gates.txt`. Pass when each refuses before dispatch.
+- [ ] Lane 9. Restart the host with a controlled-fake receipt in `Dispatched` (RS-2). Save `ca5-reconcile.txt`. Pass when reconciliation records observed outcome and separate exit evidence without a second dispatch. Source restart and version change must not enable current Claude controls.
+- [ ] Lane 10. Report the busy-stop gap (CT-8), then replay stale and contradictory stopped evidence. Save `ca5-busy-gap.txt`. Pass when no current-CLI condition enables stop, invalid evidence never produces `AlreadyStopped`, and a later restart needs a new fully gated request.
 
 **Verify, perf.** Tests alone are not sufficient verification. A PR is verified only when its unit, live, and perf boxes are all checked.
 
-- [ ] Metric. Time from `Accepted` to `OutcomeVerified` for an idle synthetic session, and host CPU time spent in that window.
-- [ ] Probe. Run 10 stops interleaved with 10 observation-only cycles of equal length.
-- [ ] Baseline. Trunk has no control route. Record that, then record the observation-only CPU value first.
-- [ ] Rule. Fail when any stop on an idle synthetic session ends `OutcomeNotObserved` inside the verification window recorded on its receipt. Report the numbers next to the ticket 7 value of about 0.85 s for process exit.
+- [ ] Metric. Gate processing latency, CPU time and allocations for refusals and already-stopped no-ops, plus request-to-visible-receipt latency. Measure fake conditional reconciliation separately as contract timing only.
+- [ ] Probe. Run 50 requests per refusal and no-op case, interleaved with equal observation-only cycles and fixture reconciliation cases. Run no real stops.
+- [ ] Baseline. Trunk has no gate. Record that, then record observation-only CPU and memory first. Do not compare fake timing with native stop research.
+- [ ] Rule. Before this box passes or CA5 becomes merge-ready, select and record measured numeric absolute budgets in issue 9 for gate latency, CPU, allocations and request-to-visible-receipt latency. Missing budgets block acceptance. Fixture reconciliation needs its own numeric timing budget and never proves provider performance. An actual conditional source route remains blocked until supported and conformed, with measured dispatch-to-visible-outcome budgets set before its performance acceptance. An unspecified timeout is not a budget.
 
-**Review gate.** None. CA5 is not review-gated. The dashboard control is exposed in S4.
+**Review gate.** None. CA5 is not review-gated. The dashboard control is exposed in S4 only after its dispatch requirements are met.
 
 **Merge.**
 
 - [ ] Root's clean verdict at the exact head SHA.
 - [ ] Bugbot triage done.
-- [ ] Rebased onto current trunk after the verdict, patch-id unchanged.
-- [ ] The operator lands the stack bottom-up.
+- [ ] Rebase the root onto current trunk, or this child onto its parent branch's exact tip. Preserve the verdict only when `git patch-id` is unchanged. Otherwise obtain fresh review and a verdict at the new head.
+- [ ] The operator lands the stack bottom-up under the confirmed execution policy.
 
 ## Publish summaries and show Claude coverage (CA6)
 
@@ -394,7 +394,7 @@ Each live lane runs in its own local worktree at the PR head. Cursor cloud VMs a
 
 - [ ] `PublicationAdmission` rejects any unknown property, links a claimed `sessionId` only within the same `ProjectRef` and never changes state, ownership or capability.
 - [ ] `drone-workbench sources --json` prints per-entrypoint coverage, version, hook channel counts, control capability and gap reasons.
-- [ ] The Coverage panel shows the same data, with gaps shown as rows, and counts sessions, subagents and processes separately.
+- [ ] The Coverage panel shows the same data, with gaps shown as rows, and counts sessions, subagents and processes separately. Background stop stays disabled with `NoConditionalDispatch`. Receipt views show `NoActionNeeded(AlreadyStopped)` as a timestamped observation, with no dispatch stages or Workbench-stop attribution.
 
 **You see.**
 
@@ -408,7 +408,7 @@ Each live lane runs in its own local worktree at the PR head. Cursor cloud VMs a
 **Verify, live.** Tests alone are not sufficient verification. A PR is verified only when its unit, live, and perf boxes are all checked. Ten lanes on `inherit-parent` at the PR head, per the boot recipe.
 
 - [ ] Lane 1. Regression lane against trunk. Open the S1 dashboard at trunk and head. Trunk lacks the Claude panel, so record that and gate the panel plus an unchanged Overview at head. Save `ca6-regression.png`. Pass when Overview counts match between trunk and head.
-- [ ] Lane 2. Open the Coverage page with two synthetic sessions running. Save `ca6-coverage.png`. Pass when both appear under `Background` with stop available for `Idle` only.
+- [ ] Lane 2. Open the Coverage page with two synthetic sessions running. Save `ca6-coverage.png`. Pass when both appear under `Background` with stop disabled and `NoConditionalDispatch` visible.
 - [ ] Lane 3. Read the Coverage page for real desktop sessions. Save `ca6-desktop.png`. Pass when they show `Desktop`, no stop control and the reason `NoSupportedRoute`.
 - [ ] Lane 4. Run `drone-workbench sources --json`. Save `ca6-sources.json`. Pass when it matches the Coverage page row for row.
 - [ ] Lane 5. Publish a valid summary claiming a synthetic session (SM-1). Save `ca6-summary.png`. Pass when the Work view shows it on that session.
@@ -420,10 +420,10 @@ Each live lane runs in its own local worktree at the PR head. Cursor cloud VMs a
 
 **Verify, perf.** Tests alone are not sufficient verification. A PR is verified only when its unit, live, and perf boxes are all checked.
 
-- [ ] Metric. Coverage page render time and host CPU time per live update with 10 synthetic sessions.
+- [ ] Metric. Coverage page render time, update-to-visible-state latency, host CPU time and peak working set with 10 synthetic sessions.
 - [ ] Probe. Load the page 20 times at trunk and head, interleaved, through `control-ui`.
 - [ ] Baseline. Record the trunk Overview render time first.
-- [ ] Rule. Fail when the head Overview render time exceeds trunk by more than 20 percent. Report Coverage page numbers to issue 9.
+- [ ] Rule. Fail when the head Overview render time exceeds trunk by more than 20 percent. Before this box passes or CA6 becomes merge-ready, select and record measured numeric absolute budgets in issue 9 for added Coverage rendering, update-to-visible-state latency, host CPU and peak working set. The Overview ratio is supplementary. Missing budgets block acceptance.
 
 **Review gate.** The operator reviews before merge.
 
@@ -435,8 +435,8 @@ Each live lane runs in its own local worktree at the PR head. Cursor cloud VMs a
 
 - [ ] Root's clean verdict at the exact head SHA.
 - [ ] Bugbot triage done.
-- [ ] Rebased onto current trunk after the verdict, patch-id unchanged.
-- [ ] The operator lands the stack bottom-up.
+- [ ] Rebase the root onto current trunk, or this child onto its parent branch's exact tip. Preserve the verdict only when `git patch-id` is unchanged. Otherwise obtain fresh review and a verdict at the new head.
+- [ ] The operator lands the stack bottom-up under the confirmed execution policy.
 
 ## Close the program
 
@@ -453,7 +453,7 @@ The plan relies on the recorded ticket 7 runs and one new read-only check. No sy
 | --- | --- | --- |
 | Can a standalone process see desktop and external Claude sessions | `claude agents --json` listed desktop sessions as `interactive`, matched to app child processes by PID. [Claude results](../research/claude-ticket7-results.md), commit `320b2e2` | Observed |
 | Is the agent-view schema unchanged on 2026-11-12 | A read of `claude agents --json --all` on CLI 2.1.312, filtered in memory to key names and enum values, returned keys `cwd, kind, name, pid, sessionId, startedAt, status`, kind `interactive` and statuses `busy` and `idle`. No receipt was kept. `busy` is new relative to ticket 7 and matches the docs. CA2 lane 2 repeats the check | Observed, read-only, unreceipted |
-| Is background stop exact, observable and idempotent | Wrong ID rejected, correct stop exited the session and PTY host, repeat stop succeeded | Observed on idle synthetic sessions |
+| What does native background stop report | Wrong ID rejected, correct stop exited the session and PTY host, repeat stop succeeded | Native research on idle synthetic sessions only. No atomic incarnation or state precondition established |
 | Does a killed session respawn | Same short ID, new PID within about 15 s, `state` stale in the gap | Observed |
 | Do hooks see crashes | No `SessionEnd` on external kill, second `SessionStart` with `startup` | Observed |
 | Documented `status`, `state`, `waitingFor`, hook events and payload fields | Official [agent view](https://code.claude.com/docs/en/agent-view.md), [hooks](https://code.claude.com/docs/en/hooks.md) and [CLI reference](https://code.claude.com/docs/en/cli-reference.md) pages, read through an AI-summarized fetch | Docs only. CA2 and CA4 fixtures must be checked against a live synthetic run |
@@ -466,7 +466,7 @@ Claude coverage that CA3 reports at start.
 | --- | --- | --- | --- |
 | `Desktop` | Observed. `Verified` after CA3 conformance | None | `NoSupportedRoute` |
 | `InteractiveCli` | Unverified until CV-2 passes | None | `NoSupportedRoute` |
-| `Background` | Observed. `Verified` after CA3 conformance | `StopBackgroundSession` for `Idle` after CA5 conformance | Busy stop unverified |
+| `Background` | Observed. `Verified` after CA3 observation conformance | `StopBackgroundSession` disabled | `NoConditionalDispatch`. Busy stop also unverified |
 | `Headless` | Unverified | None | Needs model-turn authorization |
 | `Ide` | Unverified | None | No extension found in ticket 7 |
 | `Cloud` | Unverified | None | Not inventoried |
@@ -493,7 +493,7 @@ Unproven. Busy-session stop, descendant exit under load, subagents in the live v
 | Real session metadata leaks into fixtures or captures | Every PR | `CanaryScanner` and the pre-commit diff scan. Captures stay under `.local/` |
 | Parent-chain classification fails under another launch path | CA3 | `Unknown` entrypoint counts in coverage |
 | A synthetic fixture leaks a session | CA3, CA5 | The fixture state file and `-List` at lane end |
-| A stop races a user `attach` | CA5 | Incarnation check before dispatch and `OutcomeContradicted` |
+| A stop races a replacement or a state change | CA5 | Current CLI dispatch stays disabled. A future route must atomically enforce incarnation, generation and state before any side effect |
 | CA1 and CA2 have no runtime surface, so their live lanes replay fixtures | CA1, CA2 | Lane captures name the fixture source |
 | S0 and S1 are not landed | All | The arm checklist stops the program |
 | The cross-family review panel is unavailable in Codex | All | The verdict records skipped roles |
