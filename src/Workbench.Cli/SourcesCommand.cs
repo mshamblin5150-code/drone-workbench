@@ -60,7 +60,12 @@ internal static class SourcesCommand
 
     internal static async Task<(int ExitCode, string Output)> ReadAsync(string pipeName, CancellationToken cancellationToken)
     {
-        using var pipe = new NamedPipeClientStream(".", pipeName, PipeDirection.InOut, PipeOptions.Asynchronous);
+        using var pipe = new NamedPipeClientStream(
+            ".",
+            pipeName,
+            PipeDirection.InOut,
+            PipeOptions.Asynchronous,
+            TokenImpersonationLevel.Identification);
         try
         {
             await pipe.ConnectAsync(ConnectTimeout, cancellationToken);
