@@ -1,0 +1,97 @@
+{
+  "schema_version": 1,
+  "date": "2026-11-12",
+  "cli_version": "0.167.0-alpha.4.1",
+  "test_runtime": {
+    "powershell": "7.6.9",
+    "dotnet": "10.0.14"
+  },
+  "model_turns_started": 0,
+  "proxy_reproduction": {
+    "mode": "proxy",
+    "date": "2026-11-12",
+    "model_turns_started": 0,
+    "listener_alive": true,
+    "socket_created": true,
+    "initialize_reply_kind": "timeout",
+    "proxy_raw_output_bytes": 0,
+    "owned_processes_exited": true,
+    "initialize_passed": false,
+    "server_diagnostic_flags": {
+      "http": true,
+      "handshake": false,
+      "error": true,
+      "private": false,
+      "unsupported": false
+    }
+  },
+  "corrected_transport": {
+    "mode": "dotnet-websocket",
+    "date": "2026-11-12",
+    "model_turns_started": 0,
+    "listener_alive": true,
+    "socket_created": true,
+    "connection_1": {
+      "socket_supported": true,
+      "websocket_connected": true,
+      "initialize_passed": true,
+      "snapshot_passed": true,
+      "loaded_thread_count": 0
+    },
+    "connection_2": {
+      "socket_supported": true,
+      "websocket_connected": true,
+      "initialize_passed": true,
+      "snapshot_passed": true,
+      "loaded_thread_count": 0
+    },
+    "owned_processes_exited": true,
+    "initialize_passed": true,
+    "server_diagnostic_flags": {
+      "http": true,
+      "handshake": false,
+      "error": true,
+      "private": false,
+      "unsupported": false
+    }
+  },
+  "proxy_wire_test": {
+    "forwards_json_without_http_upgrade": true,
+    "starts_with_http_get": false,
+    "raw_json_returned_to_stdio": true,
+    "owned_proxy_exited": true
+  },
+  "existing_owner": {
+    "observed_server_count": 1,
+    "parent_executable": "ChatGPT.exe",
+    "flags": [
+      "--analytics-default-enabled"
+    ],
+    "listen_flag_present": false,
+    "stdio_flag_present": false,
+    "tcp_listener_count": 0,
+    "documented_default_socket_exists": false,
+    "direct_dotnet_connection": {
+      "failure_stage": "connect",
+      "inner_failure_type": "SocketException",
+      "socket_error": 10050
+    },
+    "semantic_live_access_verified": false
+  },
+  "python_client_limit": {
+    "AF_UNIX_available": false,
+    "attempt_failure_type": "AttributeError"
+  },
+  "diagnostic_script_sha256": {
+    "codex_socket_diagnosis.py": "f7f72acced782586b69d0822ee0eb7d65c730a17829f9d9a0b3ba91561ff3d63",
+    "codex_unix_ws_client.ps1": "866bc0f42d8268db2b8dad0bbe169f91375cbeba73fdbf7a7706dd03466231f9",
+    "codex_proxy_wire_probe.ps1": "ae77199754777a7bd7a1cceffafe3c245dfc0232e57794ccedd72426d80e3bca"
+  },
+  "unverified": [
+    "Existing desktop/CLI owner semantic observation",
+    "Actual model turns or subagents",
+    "Active-work disconnect/recovery and replay",
+    "Cross-client control authority",
+    "Planned .NET 11 SDK build"
+  ]
+}

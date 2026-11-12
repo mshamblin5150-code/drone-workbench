@@ -4,6 +4,11 @@ Date: 2026-11-12. Both bounded experiments are published. This assessment
 compares their reports and receipts; it does not rerun or independently reproduce
 either experiment.
 
+Follow-up: [Codex connection diagnosis](codex-connection-diagnosis.md) resolved
+the isolated Unix-listener handshake with a .NET WebSocket client. Two sequential
+connections read empty snapshots from the same owned server. Existing desktop
+owner access remains unverified; active-work reconnect/recovery remains untested.
+
 **Verdict: useful adapter feasibility evidence, incomplete required coverage.**
 Keep [ticket 7](https://github.com/mshamblin5150-code/drone-workbench/issues/7)
 open. Preserve the confirmed PC-wide observation goal and enable controls only
@@ -61,8 +66,10 @@ authority policy, not activation of new controls or global hooks.
 
 ## Remaining evidence, in order
 
-1. **Codex existing-owner observation:** diagnose the isolated Unix proxy handshake
-   and identify a supported connection to the actual desktop/CLI owner. Do not
+1. **Codex existing-owner observation:** the isolated Unix proxy handshake is now
+   diagnosed and corrected; identify a supported connection to the actual
+   desktop/CLI owner. The observed desktop server uses the documented stdio
+   default and exposes no discovered external endpoint. Do not
    inspect private databases, bootstrap a replacement daemon or substitute another
    server's stored history. If no supported route is available, return that
    concrete coverage limitation to the owner before narrowing the product scope.
