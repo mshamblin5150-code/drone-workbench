@@ -46,3 +46,8 @@ work. A version pin does not establish an installed or tested dependency.
 Machine observations, private path mappings, credentials, raw sessions, and
 clinical material belong in local runtime storage rather than source control.
 Runtime storage locations and enforcement are still design decisions.
+
+## License
+
+Original project code and documentation are licensed under [MIT](LICENSE).
+See [third-party notices](THIRD_PARTY_NOTICES.md) for upstream material.
