@@ -1,0 +1,14 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/Workbench.Core/Workbench.Core.csproj" />
+    <Project Path="src/Workbench.Host/Workbench.Host.csproj" />
+    <Project Path="src/Workbench.Cli/Workbench.Cli.csproj" />
+    <Project Path="src/Workbench.Supervisor/Workbench.Supervisor.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/Workbench.Core.Tests/Workbench.Core.Tests.csproj" />
+    <Project Path="tests/Workbench.Host.Tests/Workbench.Host.Tests.csproj" />
+    <Project Path="tests/Workbench.Cli.Tests/Workbench.Cli.Tests.csproj" />
+    <Project Path="tests/Workbench.Supervisor.Tests/Workbench.Supervisor.Tests.csproj" />
+  </Folder>
+</Solution>

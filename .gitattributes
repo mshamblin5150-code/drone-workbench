@@ -1,2 +1,11 @@
 /.agents/skills/dwb-*/** text eol=lf
 /docs/toolchain/engineering-catalog.json text eol=lf
+*.cs text eol=lf
+*.csproj text eol=lf
+*.props text eol=lf
+*.slnx text eol=lf
+/.editorconfig text eol=lf
+/global.json text eol=lf
+/NuGet.config text eol=lf
+/tools/bootstrap-dotnet.ps1 text eol=lf
+/tools/verify-dotnet.ps1 text eol=lf
