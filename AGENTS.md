@@ -7,6 +7,11 @@ That task covers reproducible builds and synthetic runtime checks. Remaining
 source-coverage decisions stay open. Implement later stages only after their
 scope and authority are resolved.
 
+The owner also authorized [the read-only Claude slice](https://github.com/mshamblin5150-code/drone-workbench/issues/20):
+reconcile the coverage plan, replace unsafe experimental paths with read-only
+verification, and implement bounded metadata/process observation. This does not
+activate the six-stage adapter program or source controls.
+
 During human decision interviews, follow `docs/agents/grilling.md`.
 
 ## Agent skills
