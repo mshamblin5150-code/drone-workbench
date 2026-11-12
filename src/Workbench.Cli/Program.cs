@@ -1,8 +1,9 @@
 using System.CommandLine;
 using System.Text.Json;
+using Workbench.Cli;
 using Workbench.Core;
 
-var root = new RootCommand("Drone Workbench foundation diagnostics. Collection and controls are not available.");
+var root = new RootCommand("Drone Workbench CLI. Reads the running host's source snapshot; controls are not available.");
 var diagnostics = new Command("diagnostics", "Report this CLI's foundation capabilities without contacting a host.");
 var json = new Option<bool>("--json") { Description = "Write machine-readable diagnostics." };
 diagnostics.Options.Add(json);
@@ -15,7 +16,7 @@ diagnostics.SetAction(result =>
             component = "cli",
             stage = Foundation.Stage,
             version = Foundation.Version,
-            hostCommunicationAvailable = false,
+            hostCommunicationAvailable = true,
             collectionAvailable = false,
             controlsAvailable = false,
         }));
@@ -23,8 +24,9 @@ diagnostics.SetAction(result =>
     else
     {
         Console.WriteLine($"Drone Workbench {Foundation.Version} ({Foundation.Stage})");
-        Console.WriteLine("Host communication, collection, and controls are not available.");
+        Console.WriteLine("The host collects; this CLI reads its snapshot with `sources --json`. Controls are not available.");
     }
 });
 root.Subcommands.Add(diagnostics);
-return root.Parse(args).Invoke();
+root.Subcommands.Add(SourcesCommand.Create());
+return await root.Parse(args).InvokeAsync();

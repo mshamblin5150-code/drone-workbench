@@ -185,6 +185,12 @@
       "workbench.core": {
         "type": "Project"
       },
+      "workbench.host": {
+        "type": "Project",
+        "dependencies": {
+          "Workbench.Core": "[1.0.0, )"
+        }
+      },
       "System.CommandLine": {
         "type": "CentralTransitive",
         "requested": "[3.0.0, )",
