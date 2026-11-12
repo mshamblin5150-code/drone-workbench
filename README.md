@@ -7,10 +7,11 @@ supported interfaces.
 ## Current stage
 
 The foundation provides a loopback health host, CLI diagnostics, and supervisor
-diagnostics. An opt-in Host command captures read-only Claude metadata and
-process coverage once. The background collector, dashboard, cleanup scanner,
-cleanup executor, background supervision, and startup registration remain
-unimplemented. Existing Codex owner access remains unresolved.
+diagnostics. While running, the Host polls read-only Claude metadata and process
+coverage and keeps the latest snapshot in memory. The CLI reads that snapshot
+over a channel limited to the current Windows user. Persistence, the dashboard,
+cleanup, background supervision, startup registration, and source controls
+remain unimplemented. Existing Codex owner access remains unresolved.
 
 The canonical map is [Plan Drone Workbench before implementation](https://github.com/mshamblin5150-code/drone-workbench/issues/1).
 Its child issues hold decision tickets. The map links to the ticket that owns
@@ -67,6 +68,27 @@ once and exits without opening an HTTP listener. It does not start background
 collection. See [the read-only slice design](docs/plan/claude-readonly-slice.md).
 The [verification report](docs/verification/claude-readonly.md) records the tested
 versions, live results, privacy boundary, and remaining coverage gaps.
+
+## Run the host and read its snapshot
+
+```powershell
+$dotnet = & ./tools/bootstrap-dotnet.ps1
+& $dotnet .local/publish/Host/Workbench.Host.dll
+```
+
+In another terminal, as the same Windows user:
+
+```powershell
+& $dotnet .local/publish/Cli/Workbench.Cli.dll sources --json
+```
+
+The Host polls the Claude source every 15 seconds and keeps only the latest
+result in memory. The snapshot marks a source `Fresh`, `Stale`, `None` or
+`Pending`. A failed poll keeps the last good observation and marks it stale. If
+no host answers, the CLI prints a reason and exits 3. Only one Host can run per
+Windows user. See [the loop design](docs/plan/claude-observation-loop.md) and
+[its verification record](docs/verification/claude-observation-loop.md).
+`tools/measure-claude-polling.ps1` measures the per-poll cost on this PC.
 
 ## Chosen direction
 
