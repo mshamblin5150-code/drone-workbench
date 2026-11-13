@@ -86,15 +86,25 @@ public sealed record SourceView
     public DateTimeOffset? LastSucceededAt { get; }
 }
 
-// The one owner of Activity's facts in CA1: per-source partitions of projected work, generation and health, and
-// admitted capability reports. Adapters send evidence and only this class decides state, through the Liveness table.
+// The one owner of Activity's facts in CA1: per-source partitions of projected work, generation, health and the
+// admitted capability report, plus control receipts. Adapters send evidence and only this class decides state.
 // Single writer, not thread-safe: Activity serializes every adapter's batches through one loop. Apply costs
 // O(batch + tracked items of that source); ended work leaves the tracked set, so history never enters the hot path.
 public sealed class ActivityLedger
 {
+    // VersionChanged leads, so a refusal after a version change says so even when the route had its own reason.
+    private static readonly (DisabledReason Disabled, RefusalReason Refusal)[] RefusalPrecedence =
+    [
+        (DisabledReason.VersionChanged, RefusalReason.VersionChanged),
+        (DisabledReason.NoSupportedRoute, RefusalReason.NoSupportedRoute),
+        (DisabledReason.NoConditionalDispatch, RefusalReason.NoConditionalDispatch),
+        (DisabledReason.NoConformance, RefusalReason.NoConformance),
+    ];
+
     private readonly LivenessSettings settings;
     private readonly TimeProvider clock;
     private readonly Dictionary<SourceInstanceId, SourcePartition> sources = [];
+    private readonly Dictionary<RequestId, ControlReceipt> receipts = [];
 
     public ActivityLedger(LivenessSettings settings, TimeProvider clock)
     {
@@ -176,6 +186,33 @@ public sealed class ActivityLedger
         return partition.Admitted;
     }
 
+    // Records a control request and returns its receipt with every stage already recorded. CA1 ends every request
+    // Refused or NoActionNeeded, because no capability can be enabled.
+    public ControlReceipt Request(RequestId requestId, ControlAction action, WorkKey target, ProcessIncarnation? seenIncarnation, CallerScope caller)
+    {
+        if (requestId == default)
+        {
+            throw Grammar.Invalid(nameof(requestId));
+        }
+
+        Grammar.RequireDefined(action, nameof(action));
+        Grammar.RequireDefined(caller, nameof(caller));
+        ArgumentNullException.ThrowIfNull(target);
+        var now = this.clock.GetUtcNow();
+        var requested = new ControlReceipt(requestId, action, target, seenIncarnation, caller, now);
+        if (this.receipts.TryGetValue(requestId, out var existing))
+        {
+            // A retry never gates or dispatches again. Reusing an id for other work is a client error, not a retry.
+            return existing.Action == action && existing.Target == target
+                ? existing
+                : requested.Advance(ReceiptStage.Refused, now, RefusalReason.RequestIdConflict);
+        }
+
+        var receipt = this.Gate(requested, now);
+        this.receipts.Add(requestId, receipt);
+        return receipt;
+    }
+
     public WorkView? Find(WorkKey key)
     {
         ArgumentNullException.ThrowIfNull(key);
@@ -206,6 +243,17 @@ public sealed class ActivityLedger
             ? new SourceView(source, partition.Generation, SourceState.Disconnected, DisconnectReason.Timeout, partition.LastSucceededAt)
             : new SourceView(source, partition.Generation, health, partition.Disconnect, partition.LastSucceededAt);
     }
+
+    private static bool RouteFits(ControlAction action, WorkView target) => action switch
+    {
+        ControlAction.StopBackgroundSession =>
+            target.Key.Source.Kind == SourceKind.Claude && target.Key.Kind == WorkKind.Session && target.Entrypoint == Entrypoint.Background,
+        ControlAction.TerminateOwnedCommand => target.Key.Source.Kind == SourceKind.Codex && target.Key.Kind == WorkKind.Command,
+        ControlAction.InterruptTurn => target.Key.Source.Kind == SourceKind.Codex && target.Key.Kind == WorkKind.Turn,
+        _ => false,
+    };
+
+    private static RefusalReason RefusalFor(DisabledReason disabled) => RefusalPrecedence.First(entry => disabled.HasFlag(entry.Disabled)).Refusal;
 
     // A tracked command was listed by an older connection, so its identity dies with that connection (CX-2).
     private static void AdvanceGeneration(SourcePartition partition, SafeSourceBatch batch)
@@ -322,6 +370,60 @@ public sealed class ActivityLedger
         partition.LastSucceededAt = poll.ObservedAt;
         partition.Health = SourceState.Connected;
         partition.Disconnect = null;
+    }
+
+    // The first failing check wins. AlreadyStopped needs a fresh stopped observation in the current generation,
+    // retained ownership and no live incarnation, and needs no live handle (CT-3).
+    private ControlReceipt Gate(ControlReceipt requested, DateTimeOffset now)
+    {
+        ControlReceipt Refuse(RefusalReason reason) => requested.Advance(ReceiptStage.Refused, now, reason);
+
+        if (requested.Caller != CallerScope.Operator)
+        {
+            return Refuse(RefusalReason.CallerScope);
+        }
+
+        if (!this.sources.TryGetValue(requested.Target.Source, out var partition) || !partition.Work.TryGetValue(requested.Target, out var record))
+        {
+            return Refuse(RefusalReason.UnknownTarget);
+        }
+
+        var view = this.Project(record, now);
+        if (!RouteFits(requested.Action, view))
+        {
+            return Refuse(RefusalReason.NoSupportedRoute);
+        }
+
+        if (view.State is WorkState.Stale or WorkState.Unknown)
+        {
+            return Refuse(RefusalReason.StaleTarget);
+        }
+
+        if (record.Ownership == OwnershipEvidence.None)
+        {
+            return Refuse(RefusalReason.NoOwnershipEvidence);
+        }
+
+        if (requested.Action == ControlAction.StopBackgroundSession && view.State == WorkState.Stopped && record.StateGeneration == partition.Generation &&
+            (record.LastIncarnation is null || record.LastFate == Liveness.ProcessFate.Exited))
+        {
+            return requested.Advance(ReceiptStage.NoActionNeeded, now);
+        }
+
+        if (record.Reference is not { } reference || !reference.IsUsableAt(partition.Generation))
+        {
+            return Refuse(RefusalReason.StaleTarget);
+        }
+
+        if (record.LastFate == Liveness.ProcessFate.Alive && requested.SeenIncarnation != record.LastIncarnation)
+        {
+            return Refuse(RefusalReason.IncarnationChanged);
+        }
+
+        var capability = partition.Admitted?.Entrypoints
+            .FirstOrDefault(coverage => coverage.Entrypoint == view.Entrypoint)?.Controls
+            .FirstOrDefault(control => control.Action == requested.Action && control.Target == requested.Target.Kind);
+        return Refuse(capability is null ? RefusalReason.NoSupportedRoute : RefusalFor(capability.Disabled));
     }
 
     private WorkView Project(WorkRecord record, DateTimeOffset now)
