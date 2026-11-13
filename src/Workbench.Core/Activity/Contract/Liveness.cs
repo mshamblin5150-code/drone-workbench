@@ -11,6 +11,7 @@ public enum WorkState
     Restarting,
     Stopped,
     Ended,
+    Lost,
     Stale,
     Unknown,
     NotLoaded,
@@ -34,6 +35,7 @@ public enum ReasonCode
     ProcessExited,
     SessionEndedThenExited,
     RemovedAfterStop,
+    AbsentThroughSettling,
     NoConfirmation,
     SourceDisconnected,
     SourceUnavailable,
@@ -69,6 +71,7 @@ internal enum Signal
     UnlistedNoProcess,
     UnlistedLivenessUnknown,
     UnlistedAfterStop,
+    UnlistedSettled,
     HookWaiting,
     SourceDisconnected,
     SourceUnavailable,
@@ -78,16 +81,18 @@ internal enum Signal
 
 public sealed class LivenessSettings
 {
-    public LivenessSettings(int missedPollLimit, TimeSpan missedPollMargin, TimeSpan startingWindow, TimeSpan restartWindow)
+    public LivenessSettings(int missedPollLimit, TimeSpan missedPollMargin, TimeSpan startingWindow, TimeSpan restartWindow, TimeSpan lostSettlingWindow)
     {
         ArgumentOutOfRangeException.ThrowIfLessThan(missedPollLimit, 1);
         ArgumentOutOfRangeException.ThrowIfLessThan(missedPollMargin, TimeSpan.Zero);
         ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(startingWindow, TimeSpan.Zero);
         ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(restartWindow, TimeSpan.Zero);
+        ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(lostSettlingWindow, TimeSpan.Zero);
         this.MissedPollLimit = missedPollLimit;
         this.MissedPollMargin = missedPollMargin;
         this.StartingWindow = startingWindow;
         this.RestartWindow = restartWindow;
+        this.LostSettlingWindow = lostSettlingWindow;
     }
 
     public int MissedPollLimit { get; }
@@ -97,6 +102,8 @@ public sealed class LivenessSettings
     public TimeSpan StartingWindow { get; }
 
     public TimeSpan RestartWindow { get; }
+
+    public TimeSpan LostSettlingWindow { get; }
 }
 
 internal static class Liveness
@@ -104,7 +111,8 @@ internal static class Liveness
     private static readonly WorkState?[] Any = [null, .. Enum.GetValues<WorkState>().Select(state => (WorkState?)state)];
     private static readonly WorkState?[] Live = [WorkState.Busy, WorkState.Waiting, WorkState.Idle];
     private static readonly WorkState?[] LiveOrRestarting = [.. Live, WorkState.Restarting];
-    private static readonly WorkState?[] Untracked = [null, WorkState.Ended];
+    private static readonly WorkState?[] Terminal = [WorkState.Ended, WorkState.Lost];
+    private static readonly WorkState?[] Untracked = [null, .. Terminal];
     private static readonly WorkState?[] Tracked = Except(Any, Untracked);
 
     private static readonly ImmutableArray<Row> Rows =
@@ -143,13 +151,15 @@ internal static class Liveness
         Never(Untracked, Signal.UnlistedLivenessUnknown),
         Move([WorkState.Stopped], Signal.UnlistedAfterStop, WorkState.Ended, ReasonCode.RemovedAfterStop),
         Never(Except(Any, [WorkState.Stopped]), Signal.UnlistedAfterStop),
+        Move(Except(Tracked, [WorkState.Stopped]), Signal.UnlistedSettled, WorkState.Lost, ReasonCode.AbsentThroughSettling),
+        Never([.. Untracked, WorkState.Stopped], Signal.UnlistedSettled),
 
         Move(Live, Signal.HookWaiting, WorkState.Waiting, ReasonCode.NotificationHook),
         Hold(Except(Tracked, Live), Signal.HookWaiting),
         Never(Untracked, Signal.HookWaiting),
 
         Move(Tracked, Signal.SourceDisconnected, WorkState.Stale, ReasonCode.SourceDisconnected),
-        Hold([WorkState.Ended], Signal.SourceDisconnected),
+        Hold(Terminal, Signal.SourceDisconnected),
         Never([null], Signal.SourceDisconnected),
         Move(Tracked, Signal.SourceUnavailable, WorkState.Stale, ReasonCode.SourceUnavailable),
         Never(Untracked, Signal.SourceUnavailable),
@@ -157,7 +167,7 @@ internal static class Liveness
         Never(Untracked, Signal.ConnectionLost),
 
         Move(Except(Tracked, [WorkState.Stale]), Signal.ConfirmationExpired, WorkState.Stale, ReasonCode.NoConfirmation),
-        Hold([WorkState.Stale, WorkState.Ended], Signal.ConfirmationExpired),
+        Hold([WorkState.Stale, .. Terminal], Signal.ConfirmationExpired),
         Never([null], Signal.ConfirmationExpired),
     ];
 
@@ -185,6 +195,8 @@ internal static class Liveness
         .. Rows.Where(row => row.Effect == Effect.Move)
             .SelectMany(row => row.From.Select(from => new Transition(from, row.Signal, row.To, row.Reason))),
     ];
+
+    internal static bool Ends(WorkState? state) => Terminal.Contains(state);
 
     internal static bool IsDecided(WorkState? from, Signal signal) => CellOf(from, signal).Effect != Effect.Unassigned;
 
@@ -262,7 +274,17 @@ internal static class Liveness
         return observedAt - prior.FirstSeenAt <= settings.StartingWindow ? Signal.ListedPending : Signal.ListedPendingOverdue;
     }
 
-    internal static Signal ClassifyUnlisted(in Prior prior, ProcessFate lastFate, bool inventoryComplete)
+    internal static DateTimeOffset? SettledSince(DateTimeOffset? settledSince, PollSchedule? last, DateTimeOffset at, bool completePoll, LivenessSettings settings)
+    {
+        if (!completePoll)
+        {
+            return null;
+        }
+
+        return last is { } schedule && at > schedule.MissedAt(1, settings) ? at : settledSince ?? at;
+    }
+
+    internal static Signal ClassifyUnlisted(in Prior prior, ProcessFate lastFate, bool inventoryComplete, DateTimeOffset? settledSince, DateTimeOffset observedAt, LivenessSettings settings)
     {
         if (prior.SessionEndSeen && lastFate == ProcessFate.Exited)
         {
@@ -284,7 +306,10 @@ internal static class Liveness
         {
             ProcessFate.Alive => Signal.UnlistedAlive,
             ProcessFate.Exited => Signal.UnlistedExited,
-            _ => prior.LastIncarnation is null ? Signal.UnlistedNoProcess : Signal.UnlistedLivenessUnknown,
+            _ when prior.LastIncarnation is not null => Signal.UnlistedLivenessUnknown,
+            _ when prior.AbsentSince is { } absent && settledSince is { } settled &&
+                observedAt - (absent > settled ? absent : settled) > settings.LostSettlingWindow => Signal.UnlistedSettled,
+            _ => Signal.UnlistedNoProcess,
         };
     }
 
@@ -356,7 +381,8 @@ internal static class Liveness
         DateTimeOffset FirstSeenAt,
         bool EverLive,
         bool SessionEndSeen,
-        ProcessIncarnation? LastIncarnation);
+        ProcessIncarnation? LastIncarnation,
+        DateTimeOffset? AbsentSince);
 
     private readonly record struct Cell(Effect Effect, WorkState To, ReasonCode Reason);
 

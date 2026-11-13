@@ -20,7 +20,8 @@ internal static class ContractFixture
         missedPollLimit: 3,
         missedPollMargin: TimeSpan.FromMilliseconds(500),
         startingWindow: TimeSpan.FromSeconds(15),
-        restartWindow: TimeSpan.FromSeconds(30));
+        restartWindow: TimeSpan.FromSeconds(30),
+        lostSettlingWindow: TimeSpan.FromSeconds(20));
 
     public static byte[] Key { get; } = [.. Enumerable.Range(1, 32).Select(value => (byte)value)];
 

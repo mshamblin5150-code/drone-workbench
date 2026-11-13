@@ -114,6 +114,7 @@ public sealed class ActivityLedger
         var partition = this.PartitionOf(source);
         partition.Generation = new SourceGeneration(checked(partition.Generation.Value + 1));
         partition.LastSnapshotAt = DateTimeOffset.MinValue;
+        partition.SettledSince = null;
         var now = this.clock.GetUtcNow();
         foreach (var record in partition.Tracked.Where(static record => record.Key.Connection is not null))
         {
@@ -307,6 +308,8 @@ public sealed class ActivityLedger
             return batch.ObservedAt == partition.LastSnapshotAt ? ApplyOutcome.Applied : ApplyOutcome.IgnoredOutOfOrder;
         }
 
+        var completePoll = batch is SafeSourceBatch.PollSnapshot { ProcessInventoryComplete: true };
+        partition.SettledSince = Liveness.SettledSince(partition.SettledSince, partition.Schedule, batch.ObservedAt, completePoll, this.settings);
         switch (batch)
         {
             case SafeSourceBatch.PollSnapshot poll:
@@ -356,7 +359,7 @@ public sealed class ActivityLedger
         {
             var known = partition.Work.TryGetValue(entry.Work, out var record);
             record ??= new WorkRecord(entry.Work, poll.ObservedAt);
-            if (record.State == WorkState.Ended)
+            if (Liveness.Ends(record.State))
             {
                 record.StartNewLife(poll.ObservedAt);
             }
@@ -380,12 +383,13 @@ public sealed class ActivityLedger
             {
                 record.Missed = record.Missed.Add(poll.ObservedAt, this.settings);
                 record.LastFate = Liveness.FateOf(record.LastIncarnation, poll.LiveProcesses, poll.ProcessInventoryComplete);
-                var signal = Liveness.ClassifyUnlisted(record.Prior, record.LastFate, poll.ProcessInventoryComplete);
+                var signal = Liveness.ClassifyUnlisted(record.Prior, record.LastFate, poll.ProcessInventoryComplete, partition.SettledSince, poll.ObservedAt, this.settings);
+                record.AbsentSince = signal == Signal.UnlistedNoProcess ? record.AbsentSince ?? poll.ObservedAt : null;
                 Transit(record, signal, poll.ObservedAt, Channel.Poll, poll.Generation);
             }
         }
 
-        partition.Tracked.RemoveWhere(static record => record.State == WorkState.Ended);
+        partition.Tracked.RemoveWhere(static record => Liveness.Ends(record.State));
         partition.LastSucceededAt = poll.ObservedAt;
         partition.Missed = default;
         partition.Health = SourceState.Connected;
@@ -485,6 +489,8 @@ public sealed class ActivityLedger
 
         public Liveness.MissedPolls Missed { get; set; }
 
+        public DateTimeOffset? SettledSince { get; set; }
+
         public long ListingStamp { get; set; }
 
         public SourceState? Health { get; set; }
@@ -521,6 +527,8 @@ internal sealed class WorkRecord(WorkKey key, DateTimeOffset firstSeenAt)
 
     public Liveness.MissedPolls Missed { get; set; }
 
+    public DateTimeOffset? AbsentSince { get; set; }
+
     public long ListingStamp { get; set; }
 
     public bool EverLive { get; set; }
@@ -549,7 +557,7 @@ internal sealed class WorkRecord(WorkKey key, DateTimeOffset firstSeenAt)
 
     public DateTimeOffset? SourceReportedAt { get; set; }
 
-    public Liveness.Prior Prior => new(this.State, this.Reason, this.StateSince, this.FirstSeenAt, this.EverLive, this.SessionEndSeen, this.LastIncarnation);
+    public Liveness.Prior Prior => new(this.State, this.Reason, this.StateSince, this.FirstSeenAt, this.EverLive, this.SessionEndSeen, this.LastIncarnation, this.AbsentSince);
 
     public void StartNewLife(DateTimeOffset at)
     {
@@ -563,6 +571,7 @@ internal sealed class WorkRecord(WorkKey key, DateTimeOffset firstSeenAt)
     {
         this.LastConfirmedAt = at;
         this.Missed = default;
+        this.AbsentSince = null;
         this.Entrypoint = entry.Entrypoint;
         this.LastFate = lastFate;
         if (entry is not ListedWork.RecognizedEntry listed)

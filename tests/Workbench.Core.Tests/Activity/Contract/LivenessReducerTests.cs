@@ -10,7 +10,17 @@ public sealed class LivenessReducerTests(ITestOutputHelper output)
     private static readonly TimeSpan SixtySeconds = TimeSpan.FromSeconds(60);
 
     private static readonly Signal[] Unlisted =
-        [Signal.UnlistedAlive, Signal.UnlistedExited, Signal.UnlistedNoProcess, Signal.UnlistedLivenessUnknown, Signal.UnlistedAfterStop];
+        [Signal.UnlistedAlive, Signal.UnlistedExited, Signal.UnlistedNoProcess, Signal.UnlistedLivenessUnknown, Signal.UnlistedAfterStop, Signal.UnlistedSettled];
+
+    public enum Interruption
+    {
+        PartialInventory,
+        FailedAttempt,
+        Unavailable,
+        LatePoll,
+        Relisted,
+        NewGeneration,
+    }
 
     [Fact]
     public void TablePrintsOneLinePerAllowedTransitionAndDecidesEveryStateAndSignal()
@@ -47,7 +57,9 @@ public sealed class LivenessReducerTests(ITestOutputHelper output)
             moves.Where(t => t.To == WorkState.Ended),
             t => Assert.Contains(t.Signal, new[] { Signal.UnlistedExited, Signal.SessionEndThenExit, Signal.UnlistedAfterStop }));
         Assert.All(moves.Where(t => t.Signal == Signal.HookWaiting), t => Assert.Equal(WorkState.Waiting, t.To));
-        Assert.DoesNotContain(moves, t => t.From == WorkState.Ended && t.Signal is Signal.SourceDisconnected or Signal.ConfirmationExpired);
+        Assert.All(moves.Where(t => t.To == WorkState.Lost), t => Assert.Equal(Signal.UnlistedSettled, t.Signal));
+        Assert.DoesNotContain(moves, t => t.To == WorkState.Lost && t.From is null or WorkState.Stopped or WorkState.Ended);
+        Assert.DoesNotContain(moves, t => t.From is WorkState.Ended or WorkState.Lost && t.Signal is Signal.SourceDisconnected or Signal.ConfirmationExpired);
     }
 
     [Fact]
@@ -174,6 +186,123 @@ public sealed class LivenessReducerTests(ITestOutputHelper output)
         scenario.Poll([], [], inventoryComplete: false);
 
         Assert.Equal((WorkState.Unknown, ReasonCode.ProcessInventoryIncomplete), scenario.StateOf(key));
+    }
+
+    [Fact]
+    public void LV8_UnlistedWorkWithNoMatchingProcessIsLostOnlyOnceTheWholeSettlingWindowPasses()
+    {
+        var scenario = new LedgerScenario(Claude);
+        var vanished = Session(SessionA);
+        var stillRunning = Session(SessionB);
+        var process = Process(102);
+        scenario.Poll(
+            [ListedWork.Entry(vanished, Entrypoint.Background), ListedWork.Entry(stillRunning, Entrypoint.InteractiveCli, ListedStatus.Idle, incarnation: process)],
+            [process]);
+        scenario.Poll([], [process]);
+        var unlistedAt = scenario.Now;
+
+        while (scenario.Now - unlistedAt <= Settings.LostSettlingWindow)
+        {
+            Assert.DoesNotContain(scenario.View(vanished).State, new[] { WorkState.Lost, WorkState.Ended });
+            scenario.Poll([], [process]);
+        }
+
+        var lost = scenario.View(vanished);
+        Assert.Equal((WorkState.Lost, ReasonCode.AbsentThroughSettling, scenario.Now), (lost.State, lost.Reason, lost.StateSince));
+        Assert.Equal(SourceState.Connected, scenario.Ledger.Source(Claude)!.State);
+        Assert.Equal((WorkState.Stale, ReasonCode.NoConfirmation), scenario.StateOf(stillRunning));
+    }
+
+    [Theory]
+    [InlineData(Interruption.PartialInventory)]
+    [InlineData(Interruption.FailedAttempt)]
+    [InlineData(Interruption.Unavailable)]
+    [InlineData(Interruption.LatePoll)]
+    [InlineData(Interruption.Relisted)]
+    [InlineData(Interruption.NewGeneration)]
+    public void LV8_AnInterruptionInsideTheSettlingWindowRestartsIt(Interruption interruption)
+    {
+        var scenario = new LedgerScenario(Claude);
+        var key = Session(SessionA);
+        var bare = ListedWork.Entry(key, Entrypoint.Background);
+        scenario.Poll([bare], []);
+        scenario.Poll([], []);
+        var unlistedAt = scenario.Now;
+        while (scenario.Now - unlistedAt < Settings.LostSettlingWindow / 2)
+        {
+            scenario.Poll([], []);
+        }
+
+        switch (interruption)
+        {
+            case Interruption.PartialInventory:
+                scenario.Poll([], [], inventoryComplete: false);
+                break;
+            case Interruption.FailedAttempt:
+                scenario.Fail(DisconnectReason.Timeout);
+                break;
+            case Interruption.Unavailable:
+                scenario.Unavailable();
+                break;
+            case Interruption.LatePoll:
+                scenario.Clock.Advance(PollEvery + Settings.MissedPollMargin + TimeSpan.FromTicks(1));
+                break;
+            case Interruption.Relisted:
+                scenario.Poll([bare], []);
+                break;
+            case Interruption.NewGeneration:
+                scenario.Generation = scenario.Ledger.StartGeneration(Claude);
+                break;
+        }
+
+        scenario.Poll([], []);
+        var resumedAt = scenario.Now;
+        while (scenario.Now - resumedAt <= Settings.LostSettlingWindow)
+        {
+            Assert.NotEqual(WorkState.Lost, scenario.View(key).State);
+            scenario.Poll([], []);
+        }
+
+        Assert.True(resumedAt - unlistedAt >= Settings.LostSettlingWindow / 2);
+        Assert.Equal((WorkState.Lost, ReasonCode.AbsentThroughSettling), scenario.StateOf(key));
+    }
+
+    [Fact]
+    public void LV8_LostWorkListedAgainStartsANewLifeUnderTheSameKey()
+    {
+        var scenario = new LedgerScenario(Claude);
+        var key = Session(SessionA);
+        Assert.True(ControlReference.TrySourceStable(key, ShortA, out var reference));
+        scenario.Poll([ListedWork.Entry(key, Entrypoint.Background, ownership: OwnershipEvidence.SameUserBackgroundListing, reference: reference)], []);
+        var firstSeenAt = scenario.Now;
+        PollUntilLost(scenario, key);
+        Assert.True(scenario.Now - firstSeenAt > Settings.StartingWindow);
+
+        scenario.Poll([ListedWork.Entry(key, Entrypoint.Background)], []);
+
+        Assert.Equal((WorkState.Starting, ReasonCode.FirstSeen), scenario.StateOf(key));
+        Assert.Equal(OwnershipEvidence.None, scenario.View(key).Ownership);
+        Assert.Single(scenario.Ledger.Work(Claude));
+    }
+
+    [Fact]
+    public void LV8_LostIsTerminalSoFailuresUnavailabilityPartialInventoriesAndSilenceLeaveItAsItIs()
+    {
+        var scenario = new LedgerScenario(Claude);
+        var key = Session(SessionA);
+        scenario.Poll([ListedWork.Entry(key, Entrypoint.Background)], []);
+        PollUntilLost(scenario, key);
+        var lost = scenario.View(key);
+
+        FailBelowTheLimit(scenario);
+        scenario.Fail(DisconnectReason.Timeout);
+        Assert.Equal(SourceState.Disconnected, scenario.Ledger.Source(Claude)!.State);
+        scenario.Unavailable();
+        scenario.Poll([], [], inventoryComplete: false);
+        scenario.Clock.Advance(UntilMissedPollLimit(PollEvery) * 2);
+
+        Assert.Equal(lost, scenario.View(key));
+        Assert.Equal(WorkState.Lost, lost.State);
     }
 
     [Fact]
@@ -547,6 +676,16 @@ public sealed class LivenessReducerTests(ITestOutputHelper output)
         Assert.Equal((WorkState.Busy, ReasonCode.SourceReported), scenario.StateOf(unknownType));
         Assert.Equal(WaitingFor.Unknown, scenario.View(unknownType).WaitingFor);
         Assert.Null(scenario.Ledger.Find(Session(SessionC)));
+    }
+
+    private static void PollUntilLost(LedgerScenario scenario, WorkKey key)
+    {
+        var deadline = scenario.Now + (Settings.LostSettlingWindow * 2);
+        while (scenario.View(key).State != WorkState.Lost)
+        {
+            Assert.True(scenario.Now < deadline, "The work never settled into Lost.");
+            scenario.Poll([], []);
+        }
     }
 
     private static void FailBelowTheLimit(LedgerScenario scenario)
