@@ -39,6 +39,27 @@ public sealed class CapabilityReportTests
     }
 
     [Fact]
+    public void AReportFromAnUnissuedOrOlderGenerationCannotHideAVersionChange()
+    {
+        var ledger = new ActivityLedger(Settings, Clock());
+        var g1 = ledger.StartGeneration(Claude);
+        var elsewhere = new ActivityLedger(Settings, Clock());
+        elsewhere.StartGeneration(Claude);
+        var unissued = elsewhere.StartGeneration(Claude);
+        ledger.Admit(ClaudeReport(g1, "2.1.312"));
+
+        Assert.Throws<ArgumentException>(() => ledger.Admit(ClaudeReport(unissued, "2.1.312")));
+
+        var g2 = ledger.StartGeneration(Claude);
+        var changed = ledger.Admit(ClaudeReport(g2, "2.1.323"));
+        var late = ledger.Admit(ClaudeReport(g1, "2.1.312"));
+
+        Assert.Same(changed, late);
+        Assert.Equal("2.1.323", late.SourceVersion);
+        Assert.All(late.Entrypoints.SelectMany(e => e.Controls), c => Assert.True(c.Disabled.HasFlag(DisabledReason.VersionChanged)));
+    }
+
+    [Fact]
     public void AVersionChangeDisablesEveryControlForVersionChangedAndKeepsObservation()
     {
         var clock = Clock();

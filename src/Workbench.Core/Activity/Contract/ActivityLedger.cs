@@ -171,7 +171,12 @@ public sealed class ActivityLedger
     {
         ArgumentNullException.ThrowIfNull(reported);
         var partition = this.PartitionOf(reported.Source);
-        if (partition.Admitted is { } admitted && reported.Generation < admitted.Generation)
+        if (reported.Generation > partition.Generation)
+        {
+            throw new ArgumentException("The report carries a generation this ledger never issued.", nameof(reported));
+        }
+
+        if (partition.Admitted is { } admitted && reported.Generation < partition.Generation)
         {
             return admitted;
         }
