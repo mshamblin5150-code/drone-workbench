@@ -60,7 +60,7 @@ internal sealed partial class ClaudeObservationSource(
             }
 
             version = match.Groups[1].Value;
-            if (version is not ("2.1.312" or "2.1.322"))
+            if (version is not ("2.1.312" or "2.1.322" or "2.1.323"))
             {
                 return Failure(ClaudeObservation.FailureReason.UnsupportedVersion, attemptedAt, scope, version);
             }

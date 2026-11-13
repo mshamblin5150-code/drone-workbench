@@ -38,6 +38,33 @@ check confirmed the read-only array interface, then that exact version was added
 No version range was enabled. `2.1.312` retains historical evidence and synthetic
 fixture coverage; this implementation's live run used `2.1.322`.
 
+On 2026-11-12 the installed CLI updated itself again, to `2.1.323`. No task
+installed or updated it. The guard refused it before agent listing. The same
+check was repeated:
+
+- The installed help still describes `claude agents --json` as printing
+  sessions as a JSON array, and `--all` as adding completed background
+  sessions. The `stop`, `rm` and `attach` usage lines are unchanged.
+- An in-memory check of a live `claude agents --json --all` result found a JSON
+  array of 5 interactive entries. Each had the keys `cwd`, `kind`, `name`,
+  `pid`, `sessionId`, `startedAt` and `status`, with the same JSON types as
+  before. Every `sessionId` was a UUID and every `pid` an integer. Statuses were
+  `busy` and `idle`.
+
+Only key names, JSON types, enum values and pass or fail results were kept. `2.1.323` was then
+added as one more exact entry. Tests show that `2.1.321`, `2.1.324` and `2.2.0`
+are still refused. No background session existed during the check. The
+background-only `id` and `state` fields were therefore not seen on `2.1.323`,
+and the parser's existing synthetic fixtures still cover them.
+
+After the change, `tools/verify-dotnet.ps1` passed with 64 tests and 0 warnings,
+and the synthetic guard in `tools/verify-claude-observation.ps1` passed. One
+live read-only run on `2.1.323` returned `Partial` with 4 Desktop rows and 1
+Unknown entrypoint. Its process inventory was incomplete, with a known
+unmatched lower bound of 11 and an exact count of `null`. Supervisor health was
+`Unknown`, settings were unchanged, and no lifecycle command or model turn was
+sent.
+
 The parser and runner tests cover malformed roots and types, duplicate properties
 and identities, arbitrary enum values, contradictory stopped/busy fields, source
 errors, timeouts, oversized output, privacy canaries, closed command dispatch,
