@@ -177,6 +177,9 @@
       },
       "workbench.core": {
         "type": "Project"
+      },
+      "workbench.testsupport": {
+        "type": "Project"
       }
     },
     "net11.0/win-x64": {

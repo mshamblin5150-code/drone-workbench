@@ -9,5 +9,6 @@
     <PackageReference Include="xunit.runner.visualstudio" PrivateAssets="all" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" />
     <ProjectReference Include="../../src/Workbench.Core/Workbench.Core.csproj" />
+    <ProjectReference Include="../Workbench.TestSupport/Workbench.TestSupport.csproj" />
   </ItemGroup>
 </Project>
