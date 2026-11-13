@@ -148,7 +148,7 @@ public sealed record WorkKey
         return new(source, WorkKind.Command, Grammar.RequireNativeId(nativeId, nameof(nativeId)), connection);
     }
 
-    public override string ToString() => $"{this.Kind}#{Grammar.Redact(this.nativeId)}";
+    public override string ToString() => $"{this.Kind}#{Grammar.Redact(this.nativeId)}{(this.Connection is { } connection ? $"@{connection}" : null)}";
 }
 
 public sealed record ControlReference
