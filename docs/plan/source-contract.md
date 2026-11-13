@@ -74,7 +74,7 @@ Every fact carries Workbench time and, when the source provides it, source time.
 
 Stale thresholds, poll intervals and startup or restart windows come from
 measured settings under
-[Set collector restart behavior and resource budgets](https://github.com/mshamblin5150-code/drone-workbench/issues/9).
+[Measure and record collector budgets](https://github.com/mshamblin5150-code/drone-workbench/issues/24).
 This contract names them as `Settings.PollInterval`, `Settings.StaleAfter`,
 `Settings.StartingWindow` and `Settings.RestartWindow` and fixes no numbers.
 

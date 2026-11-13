@@ -140,7 +140,7 @@ Each live lane runs in its own local worktree at the PR head. Cursor cloud VMs a
 - [ ] Metric. Batch-to-projection-ready latency, plus time and allocations to apply one batch of 200 work items to a projection holding 10,000 items.
 - [ ] Probe. A BenchmarkDotNet case in `tests/Workbench.Core.Tests/Activity/Contract/ReducerBenchmarks.cs`, run three times interleaved with a 100,000-item projection.
 - [ ] Baseline. Trunk has no reducer. Record that, then record the head value at 10,000 items first.
-- [ ] Rule. Fail when the 100,000-item time exceeds three times the 10,000-item time, which shows growth with history size. Before this box passes or CA1 becomes merge-ready, select and record measured numeric absolute budgets in issue 9 for reducer time and allocations at both sizes, plus batch-to-projection-ready latency. The scaling ratio is supplementary. Missing budgets block acceptance.
+- [ ] Rule. Fail when the 100,000-item time exceeds three times the 10,000-item time, which shows growth with history size. Before this box passes or CA1 becomes merge-ready, select and record measured numeric absolute budgets in issue 24 for reducer time and allocations at both sizes, plus batch-to-projection-ready latency. The scaling ratio is supplementary. Missing budgets block acceptance.
 
 **Review gate.** None. CA1 is not review-gated.
 
@@ -196,7 +196,7 @@ Each live lane runs in its own local worktree at the PR head. Cursor cloud VMs a
 - [ ] Metric. Parse time, allocations and input-to-safe-batch latency for a 50-entry agent view.
 - [ ] Probe. A BenchmarkDotNet case in `AgentViewParserBenchmarks.cs`, interleaved with a 500-entry input.
 - [ ] Baseline. Trunk has no parser. Record that, then record the 50-entry head value first.
-- [ ] Rule. Fail when allocations per entry at 500 exceed allocations per entry at 50 by more than 50 percent. Before this box passes or CA2 becomes merge-ready, select and record measured numeric absolute budgets in issue 9 for parse time and allocations at both sizes, plus input-to-safe-batch latency. The allocation ratio is supplementary. Missing budgets block acceptance.
+- [ ] Rule. Fail when allocations per entry at 500 exceed allocations per entry at 50 by more than 50 percent. Before this box passes or CA2 becomes merge-ready, select and record measured numeric absolute budgets in issue 24 for parse time and allocations at both sizes, plus input-to-safe-batch latency. The allocation ratio is supplementary. Missing budgets block acceptance.
 
 **Review gate.** None. CA2 is not review-gated.
 
@@ -257,7 +257,7 @@ Each live lane runs in its own local worktree at the PR head. Cursor cloud VMs a
 - [ ] Metric. Wall time, CPU time and peak working set of one poll cycle, including the `claude agents` child process and process identity reads, plus source-change-to-projection latency.
 - [ ] Probe. Run 30 poll cycles with 0, 3 and 10 synthetic background sessions, interleaved, and record each value.
 - [ ] Baseline. Trunk has no poller. Record that, then record the 0-session head value first.
-- [ ] Rule. Record the poll interval used for the run in the capture. It is a run parameter, not a budget. Fail when any poll cycle takes longer than that interval or when CPU time grows faster than linearly in session count. Before this box passes or CA3 becomes merge-ready, select and record measured numeric absolute budgets in issue 9 for poll wall time, CPU and peak working set, plus source-change-to-projection latency. The interval and scaling rules are supplementary. Missing budgets block acceptance.
+- [ ] Rule. Record the poll interval used for the run in the capture. It is a run parameter, not a budget. Fail when any poll cycle takes longer than that interval or when CPU time grows faster than linearly in session count. Before this box passes or CA3 becomes merge-ready, select and record measured numeric absolute budgets in issue 24 for poll wall time, CPU and peak working set, plus source-change-to-projection latency. The interval and scaling rules are supplementary. Missing budgets block acceptance.
 
 **Review gate.** None. CA3 is not review-gated.
 
@@ -315,7 +315,7 @@ Each live lane runs in its own local worktree at the PR head. Cursor cloud VMs a
 - [ ] Metric. Hook process wall time, CPU and peak working set with the host present and absent, plus event-to-host-visible-state latency when present.
 - [ ] Probe. Run the verb 50 times per case with the `SessionStart` fixture, interleaved.
 - [ ] Baseline. Trunk has no verb. Record that, then record the host-present value first.
-- [ ] Rule. Before this box passes or CA4 becomes merge-ready, select and record measured numeric absolute budgets in issue 9 for hook wall time, CPU and peak working set in both cases, plus event-to-host-visible-state latency. Missing budgets block acceptance. Record a numeric send timeout within those budgets. An unspecified timeout plus start time is not an acceptance gate.
+- [ ] Rule. Before this box passes or CA4 becomes merge-ready, select and record measured numeric absolute budgets in issue 24 for hook wall time, CPU and peak working set in both cases, plus event-to-host-visible-state latency. Missing budgets block acceptance. Record a numeric send timeout within those budgets. An unspecified timeout plus start time is not an acceptance gate.
 
 **Review gate.** None. CA4 is not review-gated.
 
@@ -372,7 +372,7 @@ Each live lane runs in its own local worktree at the PR head. Cursor cloud VMs a
 - [ ] Metric. Gate processing latency, CPU time and allocations for refusals and already-stopped no-ops, plus request-to-visible-receipt latency. Measure fake conditional reconciliation separately as contract timing only.
 - [ ] Probe. Run 50 requests per refusal and no-op case, interleaved with equal observation-only cycles and fixture reconciliation cases. Run no real stops.
 - [ ] Baseline. Trunk has no gate. Record that, then record observation-only CPU and memory first. Do not compare fake timing with native stop research.
-- [ ] Rule. Before this box passes or CA5 becomes merge-ready, select and record measured numeric absolute budgets in issue 9 for gate latency, CPU, allocations and request-to-visible-receipt latency. Missing budgets block acceptance. Fixture reconciliation needs its own numeric timing budget and never proves provider performance. An actual conditional source route remains blocked until supported and conformed, with measured dispatch-to-visible-outcome budgets set before its performance acceptance. An unspecified timeout is not a budget.
+- [ ] Rule. Before this box passes or CA5 becomes merge-ready, select and record measured numeric absolute budgets in issue 24 for gate latency, CPU, allocations and request-to-visible-receipt latency. Missing budgets block acceptance. Fixture reconciliation needs its own numeric timing budget and never proves provider performance. An actual conditional source route remains blocked until supported and conformed, with measured dispatch-to-visible-outcome budgets set before its performance acceptance. An unspecified timeout is not a budget.
 
 **Review gate.** None. CA5 is not review-gated. The dashboard control is exposed in S4 only after its dispatch requirements are met.
 
@@ -429,7 +429,7 @@ Each live lane runs in its own local worktree at the PR head. Cursor cloud VMs a
 - [ ] Metric. Coverage page render time, update-to-visible-state latency, host CPU time and peak working set with 10 synthetic sessions.
 - [ ] Probe. Load the page 20 times at trunk and head, interleaved, through `control-ui`.
 - [ ] Baseline. Record the trunk Overview render time first.
-- [ ] Rule. Fail when the head Overview render time exceeds trunk by more than 20 percent. Before this box passes or CA6 becomes merge-ready, select and record measured numeric absolute budgets in issue 9 for added Coverage rendering, update-to-visible-state latency, host CPU and peak working set. The Overview ratio is supplementary. Missing budgets block acceptance.
+- [ ] Rule. Fail when the head Overview render time exceeds trunk by more than 20 percent. Before this box passes or CA6 becomes merge-ready, select and record measured numeric absolute budgets in issue 24 for added Coverage rendering, update-to-visible-state latency, host CPU and peak working set. The Overview ratio is supplementary. Missing budgets block acceptance.
 
 **Review gate.** The operator reviews before merge.
 
