@@ -45,10 +45,6 @@ public readonly record struct SourceGeneration
 
     public static bool operator >(SourceGeneration left, SourceGeneration right) => left.Value > right.Value;
 
-    public SourceGeneration Next() => this.Value > 0
-        ? new(checked(this.Value + 1))
-        : throw new InvalidOperationException("Only the ledger issues a first generation.");
-
     public override string ToString() => $"g{this.Value}";
 }
 

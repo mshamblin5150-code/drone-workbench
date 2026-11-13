@@ -141,6 +141,26 @@ public sealed class LivenessReducerTests(ITestOutputHelper output)
     }
 
     [Fact]
+    public void ABatchStampedWithAGenerationThisLedgerNeverIssuedIsRejectedAndChangesNothing()
+    {
+        var scenario = new LedgerScenario(Claude);
+        var key = Session(SessionA);
+        var live = Process(101);
+        scenario.Poll([ListedWork.Entry(key, Entrypoint.Background, ListedStatus.Idle, incarnation: live)], [live]);
+        var before = scenario.View(key);
+        var elsewhere = new ActivityLedger(Settings, Clock());
+        elsewhere.StartGeneration(Claude);
+        var unissued = elsewhere.StartGeneration(Claude);
+
+        scenario.Clock.Advance(Settings.PollInterval);
+        var outcome = scenario.Apply(SafeSourceBatch.Polled(Claude, unissued, scenario.Now, [], [], processInventoryComplete: true));
+
+        Assert.Equal(ApplyOutcome.RejectedUnissuedGeneration, outcome);
+        Assert.Equal(before, scenario.View(key));
+        Assert.Equal(scenario.Generation, scenario.Ledger.Source(Claude)!.Generation);
+    }
+
+    [Fact]
     public void AnIncompleteProcessInventoryNeverEndsWork()
     {
         var scenario = new LedgerScenario(Claude);

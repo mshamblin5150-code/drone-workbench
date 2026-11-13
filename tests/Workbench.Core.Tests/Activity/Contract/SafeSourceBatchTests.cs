@@ -1,5 +1,6 @@
 namespace Workbench.Core.Tests.Activity.Contract;
 
+using System.Reflection;
 using Workbench.Core.Activity.Contract;
 using Xunit;
 using static Workbench.Core.Tests.Activity.Contract.ContractFixture;
@@ -32,7 +33,10 @@ public sealed class SafeSourceBatchTests
 
         AssertRejected(() => SafeSourceBatch.Unavailable(Claude, default, Start));
         AssertRejected(() => SafeSourceBatch.Failed(Claude, generation, Start.ToOffset(TimeSpan.FromHours(2)), DisconnectReason.Timeout));
-        Assert.Throws<InvalidOperationException>(() => default(SourceGeneration).Next());
+        Assert.Empty(typeof(SourceGeneration).GetConstructors());
+        Assert.DoesNotContain(
+            typeof(SourceGeneration).GetMethods(BindingFlags.Public | BindingFlags.Instance | BindingFlags.Static),
+            method => method.ReturnType == typeof(SourceGeneration));
     }
 
     [Fact]

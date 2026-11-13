@@ -97,7 +97,7 @@ public sealed class ControlReceiptTests
     }
 
     [Fact]
-    public void CX2_ARequestOnACommandIsRefusedAsStaleOnceItsConnectionChanges()
+    public void CX2_AReconnectBeforeAnyNewBatchMakesTheOldCommandUnknownAndRefusesItsRequestAsStale()
     {
         var scenario = new LedgerScenario(CodexOwned);
         var server = Process(301);
@@ -109,14 +109,26 @@ public sealed class ControlReceiptTests
         scenario.Ledger.Admit(CodexOwnedReport(scenario.Generation));
         var beforeReconnect = scenario.Ledger.Request(NewId(), ControlAction.TerminateOwnedCommand, command, server, CallerScope.Operator);
 
-        scenario.Generation = scenario.Ledger.StartGeneration(CodexOwned);
-        scenario.Poll([], [server]);
+        var reconnected = scenario.Ledger.StartGeneration(CodexOwned);
         var afterReconnect = scenario.Ledger.Request(NewId(), ControlAction.TerminateOwnedCommand, command, server, CallerScope.Operator);
 
         Assert.Equal(RefusalReason.NoConformance, beforeReconnect.Refusal);
+        Assert.Equal(reconnected, scenario.Ledger.Source(CodexOwned)!.Generation);
         Assert.Equal((WorkState.Unknown, ReasonCode.ConnectionLost), scenario.StateOf(command));
-        Assert.False(reference.IsUsableAt(scenario.Generation));
+        Assert.False(reference.IsUsableAt(reconnected));
         Assert.Equal((ReceiptStage.Refused, RefusalReason.StaleTarget), (afterReconnect.Stage, afterReconnect.Refusal));
+    }
+
+    [Fact]
+    public void ARestartBeforeAnyNewBatchRefusesTheAlreadyStoppedNoOp()
+    {
+        var scenario = OwnedIdleBackgroundSession(out var key, out _);
+        scenario.Poll([Stopped(scenario, key)], []);
+        Assert.Equal(ReceiptStage.NoActionNeeded, scenario.Ledger.Request(NewId(), ControlAction.StopBackgroundSession, key, null, CallerScope.Operator).Stage);
+
+        scenario.Ledger.StartGeneration(Claude);
+
+        AssertRefused(scenario, key, RefusalReason.NoConditionalDispatch);
     }
 
     [Fact]
@@ -147,7 +159,7 @@ public sealed class ControlReceiptTests
     }
 
     [Fact]
-    public void StaleUnownedOldOrStillLiveStoppedEvidenceNeverYieldsAlreadyStopped()
+    public void StaleUnownedOrStillLiveStoppedEvidenceNeverYieldsAlreadyStopped()
     {
         var stale = OwnedIdleBackgroundSession(out var staleKey, out _);
         stale.Poll([Stopped(stale, staleKey)], []);
@@ -159,12 +171,6 @@ public sealed class ControlReceiptTests
         Assert.True(ControlReference.TrySourceStable(unownedKey, ShortA, out var unownedReference));
         unowned.Poll([ListedWork.Entry(unownedKey, Entrypoint.Background, lifecycle: SourceLifecycle.Stopped, reference: unownedReference)], []);
         AssertRefused(unowned, unownedKey, RefusalReason.NoOwnershipEvidence);
-
-        var older = OwnedIdleBackgroundSession(out var olderKey, out _);
-        older.Poll([Stopped(older, olderKey)], []);
-        older.Generation = older.Ledger.StartGeneration(Claude);
-        older.Hooks();
-        AssertRefused(older, olderKey, RefusalReason.NoConditionalDispatch);
 
         var stillLive = OwnedIdleBackgroundSession(out var stillLiveKey, out var process);
         stillLive.Poll([Stopped(stillLive, stillLiveKey)], [process]);

@@ -8,6 +8,7 @@ public enum ApplyOutcome
     Applied,
     IgnoredOlderGeneration,
     IgnoredOutOfOrder,
+    RejectedUnissuedGeneration,
 }
 
 public sealed record WorkView
@@ -111,8 +112,16 @@ public sealed class ActivityLedger
     {
         ArgumentNullException.ThrowIfNull(source);
         var partition = this.PartitionOf(source);
-        partition.Issued = new SourceGeneration(Math.Max(partition.Issued.Value, partition.Generation.Value) + 1);
-        return partition.Issued;
+        partition.Generation = new SourceGeneration(checked(partition.Generation.Value + 1));
+        partition.LastSnapshotAt = DateTimeOffset.MinValue;
+        var now = this.clock.GetUtcNow();
+        foreach (var record in partition.Tracked.Where(static record => record.Key.Connection is not null))
+        {
+            Transit(record, Signal.ConnectionLost, now, Channel.Poll, partition.Generation);
+        }
+
+        partition.Tracked.RemoveWhere(static record => record.Key.Connection is not null);
+        return partition.Generation;
     }
 
     public ApplyOutcome Apply(SafeSourceBatch batch)
@@ -131,9 +140,10 @@ public sealed class ActivityLedger
 
         if (batch.Generation > partition.Generation)
         {
-            AdvanceGeneration(partition, batch);
+            return ApplyOutcome.RejectedUnissuedGeneration;
         }
-        else if (batch is not SafeSourceBatch.HookDelivery && batch.ObservedAt < partition.LastSnapshotAt)
+
+        if (batch is not SafeSourceBatch.HookDelivery && batch.ObservedAt < partition.LastSnapshotAt)
         {
             return ApplyOutcome.IgnoredOutOfOrder;
         }
@@ -240,26 +250,11 @@ public sealed class ActivityLedger
 
     private static RefusalReason RefusalFor(DisabledReason disabled) => RefusalPrecedence.First(entry => disabled.HasFlag(entry.Disabled)).Refusal;
 
-    private static void AdvanceGeneration(SourcePartition partition, SafeSourceBatch batch)
-    {
-        partition.Generation = batch.Generation;
-        partition.LastSnapshotAt = DateTimeOffset.MinValue;
-        foreach (var record in partition.Tracked)
-        {
-            if (record.Key.Connection is not null)
-            {
-                Transit(record, Signal.ConnectionLost, batch);
-            }
-        }
-
-        partition.Tracked.RemoveWhere(static record => record.Key.Connection is not null);
-    }
-
     private static void ApplySourceWide(SourcePartition partition, SafeSourceBatch batch, Signal signal, SourceState health, DisconnectReason? disconnect)
     {
         foreach (var record in partition.Tracked)
         {
-            Transit(record, signal, batch);
+            Transit(record, signal, batch.ObservedAt, Channel.Poll, batch.Generation);
         }
 
         partition.LastSnapshotAt = batch.ObservedAt;
@@ -287,7 +282,7 @@ public sealed class ActivityLedger
                     record.LastConfirmedAt = delivery.ObservedAt;
                     if (Liveness.ClassifyHook(notification.WaitingFor) is { } signal)
                     {
-                        Transit(record, signal, delivery);
+                        Transit(record, signal, delivery.ObservedAt, Channel.Hook, delivery.Generation);
                     }
 
                     break;
@@ -295,9 +290,9 @@ public sealed class ActivityLedger
         }
     }
 
-    private static void Transit(WorkRecord record, Signal signal, SafeSourceBatch batch)
+    private static void Transit(WorkRecord record, Signal signal, DateTimeOffset at, Channel via, SourceGeneration generation)
     {
-        record.LastObservedAt = batch.ObservedAt;
+        record.LastObservedAt = at;
         if (Liveness.Step(record.State, signal) is not { } step)
         {
             return;
@@ -306,12 +301,12 @@ public sealed class ActivityLedger
         if (step.To != record.State)
         {
             record.State = step.To;
-            record.StateSince = batch.ObservedAt;
+            record.StateSince = at;
         }
 
         record.Reason = step.Reason;
-        record.SetBy = batch is SafeSourceBatch.HookDelivery ? Channel.Hook : Channel.Poll;
-        record.StateGeneration = batch.Generation;
+        record.SetBy = via;
+        record.StateGeneration = generation;
     }
 
     private void ApplyPoll(SourcePartition partition, SafeSourceBatch.PollSnapshot poll)
@@ -329,7 +324,7 @@ public sealed class ActivityLedger
             var fate = Liveness.FateOf(record.LastIncarnation, poll.LiveProcesses, poll.ProcessInventoryComplete);
             var signal = Liveness.ClassifyListed(record.Prior, entry, fate, poll.ObservedAt, this.settings);
             record.Confirm(entry, poll.ObservedAt, fate);
-            Transit(record, signal, poll);
+            Transit(record, signal, poll.ObservedAt, Channel.Poll, poll.Generation);
             record.ListingStamp = stamp;
             if (!known)
             {
@@ -344,7 +339,7 @@ public sealed class ActivityLedger
             if (record.ListingStamp != stamp)
             {
                 record.LastFate = Liveness.FateOf(record.LastIncarnation, poll.LiveProcesses, poll.ProcessInventoryComplete);
-                Transit(record, Liveness.ClassifyUnlisted(record.Prior, record.LastFate), poll);
+                Transit(record, Liveness.ClassifyUnlisted(record.Prior, record.LastFate), poll.ObservedAt, Channel.Poll, poll.Generation);
             }
         }
 
@@ -433,8 +428,6 @@ public sealed class ActivityLedger
         public HashSet<WorkRecord> Tracked { get; } = [];
 
         public SourceGeneration Generation { get; set; }
-
-        public SourceGeneration Issued { get; set; }
 
         public DateTimeOffset LastSnapshotAt { get; set; } = DateTimeOffset.MinValue;
 
