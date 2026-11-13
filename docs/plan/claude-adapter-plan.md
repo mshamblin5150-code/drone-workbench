@@ -111,9 +111,9 @@ Each live lane runs in its own local worktree at the PR head. Cursor cloud VMs a
 - [ ] Encode the source contract as types. `WorkState` transitions live in one reducer table in `Liveness.cs`, not in adapter conditionals. `ControlReceipt` allows only the stage edges in the contract.
 - [ ] `ControlReference` makes `ConnectionScoped` references unusable after the connection generation changes, by construction.
 - [ ] A batch from an older `SourceGeneration` is a no-op in the reducer.
-- [ ] `WorkState.Lost` is terminal and distinct from `Ended`. The reducer enters it only by the contract's settling-window rule, and a listed reappearance starts a new life under the same `WorkKey`.
+- [ ] `WorkState.Lost` is terminal for one life and distinct from `Ended`. The reducer enters it only by the contract's settling rule, with reason `AbsentThroughSettling`, and a listed reappearance starts a new life under the same `WorkKey`. Activity refuses a request for `Ended` or `Lost` work with `StaleTarget`.
 - [ ] `Entrypoint` includes `WorkbenchHosted`. Ownership of a Codex command binds to `WorkbenchHosted`, never to `Headless`.
-- [ ] Each `SafeSourceBatch` carries its scheduled poll interval. Work goes `Stale` and the source goes `Disconnected` after `MissedPollLimit` missed expected polls. No single `StaleAfter` threshold exists.
+- [ ] Each scheduled `SafeSourceBatch` (`Polled`, `Failed` or `Unavailable`) carries the interval the collector scheduled. `LivenessSettings` injects `MissedPollLimit`, `MissedPollMargin`, `StartingWindow`, `RestartWindow` and `LostSettlingWindow`, and holds no poll interval. Activity counts missed polls by the contract's rule. A source at the limit goes `Disconnected` and its work goes `Stale` with `SourceDisconnected`. A work item unlisted at its own limit goes `Stale` with `NoConfirmation`.
 - [ ] Use an injected `TimeProvider` everywhere. No `DateTime.Now`.
 
 **You see.**
@@ -425,7 +425,7 @@ Each live lane runs in its own local worktree at the PR head. Cursor cloud VMs a
 - [ ] Lane 5. Publish a valid summary claiming a synthetic session (SM-1). Save `ca6-summary.png`. Pass when the Work view shows it on that session.
 - [ ] Lane 6. Publish a summary with an unknown canary property (SM-2). Save `ca6-rejected.png`. Pass when it is rejected and `CanaryScanner` finds nothing.
 - [ ] Lane 7. Publish a summary claiming a session in another project (SM-3). Save `ca6-unassociated.png`. Pass when it shows unassociated.
-- [ ] Lane 8. Disconnect the source by hiding the CLI from the poller. Save `ca6-disconnected.png`. Pass when the panel shows `Disconnected` and work shows `Stale`, not empty.
+- [ ] Lane 8. Hide the CLI from the poller (CV-6). Save `ca6-unavailable.png`. Pass when the panel shows `Unavailable` and work shows `Stale` with `SourceUnavailable`, not empty.
 - [ ] Lane 9. Close and reopen the browser during polling. Save `ca6-browser-reopen.png`. Pass when collection continued and the page shows current state.
 - [ ] Lane 10. Run `CanaryScanner` over the database file, logs and saved pages. Save `ca6-canary-scan.txt`. Pass when it finds zero canaries and zero real paths.
 
@@ -438,7 +438,7 @@ Each live lane runs in its own local worktree at the PR head. Cursor cloud VMs a
 
 **Review gate.** The operator reviews before merge.
 
-- [ ] Copy lane 2, 3 and 8 screenshots into `.local/review/ca6-review-coverage.png`, `.local/review/ca6-review-desktop.png` and `.local/review/ca6-review-disconnected.png`. Blur real session rows before sharing.
+- [ ] Copy lane 2, 3 and 8 screenshots into `.local/review/ca6-review-coverage.png`, `.local/review/ca6-review-desktop.png` and `.local/review/ca6-review-unavailable.png`. Blur real session rows before sharing.
 - [ ] Record a 30 to 60 second video of the Coverage page with synthetic sessions only. Save it as `.local/review/ca6-review.mp4`.
 - [ ] Post the screenshots and the video in chat. Stop at merge-ready. Wait for the operator's click.
 

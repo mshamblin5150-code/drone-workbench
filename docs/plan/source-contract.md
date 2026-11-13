@@ -68,21 +68,50 @@ Every fact carries Workbench time and, when the source provides it, source time.
 | `ObservedAt` | Host `TimeProvider` when the adapter received the fact | Freshness, ordering within a generation, history expiry |
 | `SourceReportedAt` | Source value such as agent-view `startedAt` | Display only. Workbench never corrects skew or computes freshness from it |
 | `ReceivedAt` | Host time when a hook or publication arrived | Same as `ObservedAt` for push channels |
-| `LastConfirmedAt` | Latest `ObservedAt` that confirmed the work is present | Drives `Stale` |
+| `LastConfirmedAt` | Latest `ObservedAt` of a poll that listed the work | Display. Staleness counts missed polls, not this time |
 | `StateSince` | First `ObservedAt` of the current projected state | Display and dwell checks |
 
-Poll intervals, the missed-poll limit, startup and restart windows and the
-settling window for `Lost` come from measured settings under
+`LivenessSettings` injects five values: `MissedPollLimit`, `MissedPollMargin`,
+`StartingWindow`, `RestartWindow` and `LostSettlingWindow`. Their numbers come
+from measurements under
 [Measure and record collector budgets](https://github.com/mshamblin5150-code/drone-workbench/issues/24).
-This contract names them as `Settings.PollInterval`, `Settings.MissedPollLimit`,
-`Settings.StartingWindow`, `Settings.RestartWindow` and
-`Settings.LostSettlingWindow` and fixes no numbers.
+This contract fixes none of them.
 
-Staleness counts missed polls, not elapsed time against one threshold. Each
-`SafeSourceBatch` carries the scheduled interval of the poll that produced it.
-An expected poll is missed when one scheduled interval passes with no
-successful poll. Work goes `Stale` and its source goes `Disconnected` after
-`MissedPollLimit` missed expected polls.
+The poll interval is not a setting. The collector owns its schedule and reports
+each scheduled attempt as one batch that carries the interval it scheduled:
+
+- `SafeSourceBatch.Polled` is a successful poll, with the listing and a process
+  inventory that is complete or partial.
+- `SafeSourceBatch.Failed` is a failed attempt, with its `DisconnectReason`.
+- `SafeSourceBatch.Unavailable` reports that the executable or endpoint is
+  absent.
+
+`SafeSourceBatch.Hooks` is not scheduled. It carries no interval and confirms
+nothing.
+
+### Missed polls
+
+Staleness counts missed polls. It never compares elapsed time against one
+threshold. Activity keeps one count for each source and one for each work item.
+
+- A scheduled batch that does not confirm the subject adds one miss when it
+  arrives. For a source, only a `Polled` batch confirms it, and an
+  `Unavailable` batch restarts its count instead of adding a miss. For a work
+  item, only a `Polled` batch that lists the item confirms it. A confirmation
+  resets the count to zero.
+- An expected poll that never arrived also counts as a miss. After the latest
+  scheduled batch, the first expected poll is missed once that batch's interval
+  plus `MissedPollMargin` has passed with no further batch. Each later expected
+  poll is missed one interval after the one before it. The next batch replaces
+  the interval, so the schedule always follows the latest batch.
+- The limit is reached when the arrived misses plus the overdue expected polls
+  reach `MissedPollLimit`.
+
+A source at the limit reads `Disconnected`, and its work reads `Stale` with
+`SourceDisconnected`. A work item at its own limit while its source is still
+`Connected` reads `Stale` with `NoConfirmation`. An item that successful polls
+stop listing therefore goes `Stale` after `MissedPollLimit` polls that did not
+list it, however long or short those intervals were.
 
 ## Channels
 
@@ -111,17 +140,34 @@ it.
 | `Restarting` | A previously live entry loses `pid` and `status` while still listed, or the incarnation exits while the source still lists the work and no `SessionEnd` preceded the exit | Absence from the list |
 | `Stopped` | Background `state=stopped`, or a verified control outcome | Idempotent stop acknowledgement alone |
 | `Ended` | Interactive entry gone and its last incarnation exited (`ProcessExited`). `SessionEnd` followed by incarnation exit, even while still listed (`SessionEndedThenExited`). A `Stopped` entry removed from the list while a complete process inventory shows no process (`RemovedAfterStop`) | Absence alone, or `SessionEnd` alone |
-| `Lost` | Unlisted for the whole `LostSettlingWindow`, while the source stayed `Connected`, every process inventory was complete and no matching process existed | Absence during a partial inventory or a missed poll |
-| `Stale` | The source missed `MissedPollLimit` expected polls, or became `Disconnected` or `Unavailable` | Not applicable |
-| `Unknown` | Listed entry with contradictory or unrecognized fields, incarnation alive but entry missing, `Starting` past `StartingWindow` (`StartupOverdue`), or `Restarting` past `RestartWindow` (`RestartOverdue`) | Not applicable |
+| `Lost` | The settling rule below holds for unlisted work with no recorded process incarnation (`AbsentThroughSettling`) | `Stopped`, or any absence the settling rule does not cover |
+| `Stale` | The work reached `MissedPollLimit` missed polls (`NoConfirmation`), its source is `Disconnected` (`SourceDisconnected`), or its source reported `Unavailable` (`SourceUnavailable`) | `Ended` or `Lost` |
+| `Unknown` | Listed entry with contradictory or unrecognized fields, incarnation alive but entry missing (`NotInAgentView`), unlisted with no process to check before `Lost` settles (`NotInAgentView`), unlisted while a partial inventory leaves the process unknown (`ProcessInventoryIncomplete`), `Starting` past `StartingWindow` (`StartupOverdue`), or `Restarting` past `RestartWindow` (`RestartOverdue`) | Not applicable |
 | `NotLoaded` | Codex stored thread not loaded in the live owner | Claude sources |
 
-`Ended` and `Lost` are terminal. `Lost` means the work disappeared with no
-evidence of how it ended, so views never show it as `Ended` or successful. If a
-`Lost` or `Ended` work item is listed again, including a respawn after
-`SessionEndedThenExited`, it starts a new life under the same `WorkKey`. The new
-life starts with a fresh first-seen time and carries no `SessionEnd` evidence
-or ownership evidence from the old one.
+A **life** of a work item is the span from its first sighting, or its
+reappearance after a terminal state, to its next terminal state. `Ended` and
+`Lost` are terminal for that life. If an `Ended` or `Lost` work item is listed
+again, including a respawn after `SessionEndedThenExited`, it starts a new life
+under the same `WorkKey`. The new life starts with a fresh first-seen time and
+carries no `SessionEnd` evidence or ownership evidence from the old one.
+
+`Lost` means the work disappeared with no evidence of how it ended, so views
+never show it as `Ended` or successful. It applies only to work with no recorded
+process incarnation. Work with one resolves through that process instead. A
+complete inventory that no longer shows it gives `Ended` with `ProcessExited`.
+Activity keeps two times for the settling rule:
+
+- `AbsentSince` is when the work was first unlisted with no process to check.
+  A listing clears it.
+- `SettledSince` is the start of the source's current unbroken run of on-time
+  `Polled` batches with complete process inventories. A partial inventory, a
+  `Failed` batch, an `Unavailable` batch or a new source generation clears it.
+  A batch that arrives later than the previous batch's interval plus
+  `MissedPollMargin` restarts it at that batch.
+
+The work becomes `Lost` at the first poll that does not list it and arrives
+more than `LostSettlingWindow` after the later of those two times.
 
 `RestartOverdue` is sticky. A later restart gap keeps the work `Unknown` with
 `RestartOverdue` until the entry lists a live incarnation again.
@@ -134,9 +180,9 @@ was gone, so a raw `state` cannot keep work `Idle`, `Busy` or `Waiting`.
 
 | State | Meaning |
 | --- | --- |
-| `Connected` | Fewer than `MissedPollLimit` expected polls missed since the last successful poll or handshake |
-| `Disconnected` | `MissedPollLimit` expected polls missed. `ReasonCode` is the last failed attempt's reason: `Timeout`, `NonZeroExit`, `MalformedOutput`, `OutputTooLarge`, `TransportError` or `SchemaDrift`. Work from this source becomes `Stale` with reason `SourceDisconnected` |
-| `Unavailable` | Executable or endpoint is absent, such as no Claude CLI on `PATH` or no exposed Codex desktop endpoint. Work from this source becomes `Stale` with reason `SourceUnavailable` |
+| `Connected` | The latest successful poll set it, and the source's missed polls have not reached `MissedPollLimit` |
+| `Disconnected` | The source's missed polls reached `MissedPollLimit`. Each `Failed` batch counts as one missed poll. The reason is the `DisconnectReason` of the last `Failed` batch since the latest `Polled` or `Unavailable` batch, one of `Timeout`, `NonZeroExit`, `MalformedOutput`, `OutputTooLarge`, `TransportError` or `SchemaDrift`. When no `Failed` batch arrived in that span, silence alone reached the limit and the reason is `Timeout`. A source whose every attempt so far failed was never connected, so it reads `Disconnected` from its first `Failed` batch. Work from this source becomes `Stale` with reason `SourceDisconnected` |
+| `Unavailable` | The latest batch was `Unavailable`, so the executable or endpoint is absent, such as no Claude CLI on `PATH` or no exposed Codex desktop endpoint. It applies at once and restarts the source's missed-poll count. Work from this source becomes `Stale` with reason `SourceUnavailable` at once. If the source then falls silent, it reads `Disconnected` with `Timeout` once overdue polls reach the limit |
 | `Unsupported` | Workbench has no adapter for this entrypoint |
 
 ## Coverage and capability report
@@ -248,7 +294,7 @@ never implies the source outcome.
 | Stage | Meaning |
 | --- | --- |
 | `Requested` | A caller asked. Carries a client `RequestId` and exact `WorkKey`. A dispatch request also carries the `ProcessIncarnation` the caller saw. A different current incarnation gives `Refused(IncarnationChanged)` |
-| `Refused` | The gate refused before dispatch. Carries a `RefusalReason` such as `NoSupportedRoute`, `NoConditionalDispatch`, `NoOwnershipEvidence`, `TargetConditionUnverified`, `StaleTarget`, `IncarnationChanged`, `CallerScope`, `VersionChanged` or `RequestIdConflict`. Nothing was sent to the source |
+| `Refused` | The gate refused before dispatch. Carries a `RefusalReason` such as `NoSupportedRoute`, `NoConditionalDispatch`, `NoOwnershipEvidence`, `TargetConditionUnverified`, `StaleTarget`, `IncarnationChanged`, `CallerScope`, `VersionChanged` or `RequestIdConflict`. A request for `Stale`, `Unknown`, `Ended` or `Lost` work gives `Refused(StaleTarget)`. Nothing was sent to the source |
 | `NoActionNeeded` | `AlreadyStopped` is a fresh validated observation for an authenticated operator and exact owned `WorkKey`, with no current live incarnation. No live handle is required. No source command runs and no later receipt stage follows |
 | `Accepted` | A supported conditional route exists. Activity rechecked identity, ownership evidence, freshness, capability, target condition, reference scope and caller scope, and recorded the target's prior state and incarnation |
 | `Dispatched` | The adapter started the source command or request |
