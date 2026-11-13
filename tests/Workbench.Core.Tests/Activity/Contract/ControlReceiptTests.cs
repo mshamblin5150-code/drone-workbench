@@ -102,6 +102,18 @@ public sealed class ControlReceiptTests
     }
 
     [Fact]
+    public void ARequestForEndedWorkIsRefusedAsAStaleTarget()
+    {
+        var scenario = OwnedIdleBackgroundSession(out var key, out var live);
+        scenario.Poll([], []);
+        Assert.Equal(WorkState.Ended, scenario.View(key).State);
+
+        var receipt = scenario.Ledger.Request(NewId(), ControlAction.StopBackgroundSession, key, live, CallerScope.Operator);
+
+        Assert.Equal((ReceiptStage.Refused, RefusalReason.StaleTarget), (receipt.Stage, receipt.Refusal));
+    }
+
+    [Fact]
     public void AnIdReusedForOtherWorkIsRefusedAsAConflictAndLeavesTheFirstReceipt()
     {
         var scenario = OwnedIdleBackgroundSession(out var key, out var live);

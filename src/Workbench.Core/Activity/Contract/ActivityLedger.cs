@@ -416,7 +416,7 @@ public sealed class ActivityLedger
             return Refuse(RefusalReason.NoSupportedRoute);
         }
 
-        if (view.State is WorkState.Stale or WorkState.Unknown)
+        if (view.State is WorkState.Stale or WorkState.Unknown or WorkState.Ended or WorkState.Lost)
         {
             return Refuse(RefusalReason.StaleTarget);
         }
