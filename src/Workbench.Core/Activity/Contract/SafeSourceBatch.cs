@@ -68,33 +68,47 @@ public abstract class SafeSourceBatch
         SourceInstanceId source,
         SourceGeneration generation,
         DateTimeOffset observedAt,
+        TimeSpan pollInterval,
         IEnumerable<ListedWork> listing,
         IEnumerable<ProcessIncarnation> liveProcesses,
         bool processInventoryComplete) =>
-        new PollSnapshot(source, generation, observedAt, [.. listing], [.. liveProcesses], processInventoryComplete);
+        new PollSnapshot(source, generation, observedAt, pollInterval, [.. listing], [.. liveProcesses], processInventoryComplete);
 
-    public static SafeSourceBatch Failed(SourceInstanceId source, SourceGeneration generation, DateTimeOffset attemptedAt, DisconnectReason reason)
+    public static SafeSourceBatch Failed(SourceInstanceId source, SourceGeneration generation, DateTimeOffset attemptedAt, TimeSpan pollInterval, DisconnectReason reason)
     {
         Grammar.RequireDefined(reason, nameof(reason));
-        return new PollFailure(source, generation, attemptedAt, reason);
+        return new PollFailure(source, generation, attemptedAt, pollInterval, reason);
     }
 
-    public static SafeSourceBatch Unavailable(SourceInstanceId source, SourceGeneration generation, DateTimeOffset attemptedAt) =>
-        new SourceAbsent(source, generation, attemptedAt);
+    public static SafeSourceBatch Unavailable(SourceInstanceId source, SourceGeneration generation, DateTimeOffset attemptedAt, TimeSpan pollInterval) =>
+        new SourceAbsent(source, generation, attemptedAt, pollInterval);
 
     public static SafeSourceBatch Hooks(SourceInstanceId source, SourceGeneration generation, DateTimeOffset receivedAt, IEnumerable<HookEvent> events) =>
         new HookDelivery(source, generation, receivedAt, [.. events]);
 
-    internal sealed class PollSnapshot : SafeSourceBatch
+    internal abstract class Scheduled : SafeSourceBatch
+    {
+        private protected Scheduled(SourceInstanceId source, SourceGeneration generation, DateTimeOffset observedAt, TimeSpan pollInterval)
+            : base(source, generation, observedAt)
+        {
+            ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(pollInterval, TimeSpan.Zero);
+            this.PollInterval = pollInterval;
+        }
+
+        internal TimeSpan PollInterval { get; }
+    }
+
+    internal sealed class PollSnapshot : Scheduled
     {
         internal PollSnapshot(
             SourceInstanceId source,
             SourceGeneration generation,
             DateTimeOffset observedAt,
+            TimeSpan pollInterval,
             ImmutableArray<ListedWork> listing,
             HashSet<ProcessIncarnation> liveProcesses,
             bool processInventoryComplete)
-            : base(source, generation, observedAt)
+            : base(source, generation, observedAt, pollInterval)
         {
             if (liveProcesses.Contains(default))
             {
@@ -125,14 +139,14 @@ public abstract class SafeSourceBatch
         internal bool ProcessInventoryComplete { get; }
     }
 
-    internal sealed class PollFailure(SourceInstanceId source, SourceGeneration generation, DateTimeOffset attemptedAt, DisconnectReason reason)
-        : SafeSourceBatch(source, generation, attemptedAt)
+    internal sealed class PollFailure(SourceInstanceId source, SourceGeneration generation, DateTimeOffset attemptedAt, TimeSpan pollInterval, DisconnectReason reason)
+        : Scheduled(source, generation, attemptedAt, pollInterval)
     {
         internal DisconnectReason Reason { get; } = reason;
     }
 
-    internal sealed class SourceAbsent(SourceInstanceId source, SourceGeneration generation, DateTimeOffset attemptedAt)
-        : SafeSourceBatch(source, generation, attemptedAt);
+    internal sealed class SourceAbsent(SourceInstanceId source, SourceGeneration generation, DateTimeOffset attemptedAt, TimeSpan pollInterval)
+        : Scheduled(source, generation, attemptedAt, pollInterval);
 
     internal sealed class HookDelivery : SafeSourceBatch
     {

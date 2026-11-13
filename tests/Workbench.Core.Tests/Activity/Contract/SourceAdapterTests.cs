@@ -92,7 +92,7 @@ public sealed class SourceAdapterTests
             var live = Process(101);
             await Task.Yield();
             yield return SafeSourceBatch.Polled(
-                Claude, generation, Start, [ListedWork.Entry(Session(SessionA), Entrypoint.Background, ListedStatus.Idle, incarnation: live)], [live], true);
+                Claude, generation, Start, PollEvery, [ListedWork.Entry(Session(SessionA), Entrypoint.Background, ListedStatus.Idle, incarnation: live)], [live], true);
         }
     }
 }

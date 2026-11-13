@@ -184,7 +184,7 @@ public sealed class ControlReceiptTests
     {
         var stale = OwnedIdleBackgroundSession(out var staleKey, out _);
         stale.Poll([Stopped(stale, staleKey)], []);
-        stale.Clock.Advance(Settings.StaleAfter + TimeSpan.FromSeconds(1));
+        stale.Clock.Advance(UntilMissedPollLimit(PollEvery) + TimeSpan.FromSeconds(1));
         AssertRefused(stale, staleKey, RefusalReason.StaleTarget);
 
         var unowned = new LedgerScenario(Claude);

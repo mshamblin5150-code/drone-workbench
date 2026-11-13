@@ -143,27 +143,12 @@ public sealed class ActivityLedger
             return ApplyOutcome.RejectedUnissuedGeneration;
         }
 
-        if (batch is not SafeSourceBatch.HookDelivery && batch.ObservedAt < partition.LastSnapshotAt)
+        if (batch is SafeSourceBatch.Scheduled scheduled)
         {
-            return ApplyOutcome.IgnoredOutOfOrder;
+            return this.ApplyScheduled(partition, scheduled);
         }
 
-        switch (batch)
-        {
-            case SafeSourceBatch.PollSnapshot poll:
-                this.ApplyPoll(partition, poll);
-                break;
-            case SafeSourceBatch.PollFailure failure:
-                ApplySourceWide(partition, failure, Signal.SourceDisconnected, SourceState.Disconnected, failure.Reason);
-                break;
-            case SafeSourceBatch.SourceAbsent absent:
-                ApplySourceWide(partition, absent, Signal.SourceUnavailable, SourceState.Unavailable, null);
-                break;
-            case SafeSourceBatch.HookDelivery delivery:
-                ApplyHooks(partition, delivery);
-                break;
-        }
-
+        ApplyHooks(partition, (SafeSourceBatch.HookDelivery)batch);
         return ApplyOutcome.Applied;
     }
 
@@ -243,7 +228,7 @@ public sealed class ActivityLedger
             return null;
         }
 
-        return this.SilentSince(partition, this.clock.GetUtcNow()) is not null
+        return this.DisconnectedSince(partition, this.clock.GetUtcNow()) is not null
             ? new SourceView(source, partition.Generation, SourceState.Disconnected, DisconnectReason.Timeout, partition.LastSucceededAt)
             : new SourceView(source, partition.Generation, health, partition.Disconnect, partition.LastSucceededAt);
     }
@@ -267,18 +252,6 @@ public sealed class ActivityLedger
     };
 
     private static RefusalReason RefusalFor(DisabledReason disabled) => RefusalPrecedence.First(entry => disabled.HasFlag(entry.Disabled)).Refusal;
-
-    private static void ApplySourceWide(SourcePartition partition, SafeSourceBatch batch, Signal signal, SourceState health, DisconnectReason? disconnect)
-    {
-        foreach (var record in partition.Tracked)
-        {
-            Transit(record, signal, batch.ObservedAt, Channel.Poll, batch.Generation);
-        }
-
-        partition.LastSnapshotAt = batch.ObservedAt;
-        partition.Health = health;
-        partition.Disconnect = disconnect;
-    }
 
     private static void ApplyHooks(SourcePartition partition, SafeSourceBatch.HookDelivery delivery)
     {
@@ -326,6 +299,44 @@ public sealed class ActivityLedger
         record.StateGeneration = generation;
     }
 
+    private ApplyOutcome ApplyScheduled(SourcePartition partition, SafeSourceBatch.Scheduled batch)
+    {
+        if (batch.ObservedAt <= partition.LastSnapshotAt)
+        {
+            // A replay of the last scheduled batch is already reflected, and applying it again would count its missed polls twice.
+            return batch.ObservedAt == partition.LastSnapshotAt ? ApplyOutcome.Applied : ApplyOutcome.IgnoredOutOfOrder;
+        }
+
+        switch (batch)
+        {
+            case SafeSourceBatch.PollSnapshot poll:
+                this.ApplyPoll(partition, poll);
+                break;
+            case SafeSourceBatch.PollFailure failure:
+                this.ApplySourceWide(partition, failure, Signal.SourceDisconnected, SourceState.Disconnected, failure.Reason);
+                break;
+            case SafeSourceBatch.SourceAbsent absent:
+                this.ApplySourceWide(partition, absent, Signal.SourceUnavailable, SourceState.Unavailable, null);
+                break;
+        }
+
+        partition.LastSnapshotAt = batch.ObservedAt;
+        partition.Schedule = new Liveness.PollSchedule(batch.ObservedAt, batch.PollInterval);
+        return ApplyOutcome.Applied;
+    }
+
+    private void ApplySourceWide(SourcePartition partition, SafeSourceBatch batch, Signal signal, SourceState health, DisconnectReason? disconnect)
+    {
+        foreach (var record in partition.Tracked)
+        {
+            record.Missed = record.Missed.Add(batch.ObservedAt, this.settings);
+            Transit(record, signal, batch.ObservedAt, Channel.Poll, batch.Generation);
+        }
+
+        partition.Health = health;
+        partition.Disconnect = disconnect;
+    }
+
     private void ApplyPoll(SourcePartition partition, SafeSourceBatch.PollSnapshot poll)
     {
         var stamp = ++partition.ListingStamp;
@@ -355,6 +366,7 @@ public sealed class ActivityLedger
         {
             if (record.ListingStamp != stamp)
             {
+                record.Missed = record.Missed.Add(poll.ObservedAt, this.settings);
                 record.LastFate = Liveness.FateOf(record.LastIncarnation, poll.LiveProcesses, poll.ProcessInventoryComplete);
                 var signal = Liveness.ClassifyUnlisted(record.Prior, record.LastFate, poll.ProcessInventoryComplete);
                 Transit(record, signal, poll.ObservedAt, Channel.Poll, poll.Generation);
@@ -362,8 +374,8 @@ public sealed class ActivityLedger
         }
 
         partition.Tracked.RemoveWhere(static record => record.State == WorkState.Ended);
-        partition.LastSnapshotAt = poll.ObservedAt;
         partition.LastSucceededAt = poll.ObservedAt;
+        partition.Missed = default;
         partition.Health = SourceState.Connected;
         partition.Disconnect = null;
     }
@@ -423,19 +435,16 @@ public sealed class ActivityLedger
     private WorkView Project(SourcePartition partition, WorkRecord record, DateTimeOffset now)
     {
         var stored = record.State ?? throw new UnreachableException();
-        var (expiredAt, signal) = this.SilentSince(partition, now) is { } silentSince
-            ? (silentSince, Signal.SourceDisconnected)
-            : (this.ExpiredAt(record.LastConfirmedAt, now), Signal.ConfirmationExpired);
+        var (expiredAt, signal) = this.DisconnectedSince(partition, now) is { } disconnectedAt
+            ? (disconnectedAt, Signal.SourceDisconnected)
+            : (record.Missed.LimitPassedAt(partition.Schedule, now, this.settings), Signal.ConfirmationExpired);
         return expiredAt is { } since && Liveness.Step(stored, signal) is { } stale
             ? new WorkView(record, stale.To, stale.Reason, since)
             : new WorkView(record, stored, record.Reason, record.StateSince);
     }
 
-    private DateTimeOffset? SilentSince(SourcePartition partition, DateTimeOffset now) =>
-        partition.Health == SourceState.Connected ? this.ExpiredAt(partition.LastSucceededAt, now) : null;
-
-    private DateTimeOffset? ExpiredAt(DateTimeOffset? confirmedAt, DateTimeOffset now) =>
-        confirmedAt + this.settings.StaleAfter is { } expiry && now > expiry ? expiry : null;
+    private DateTimeOffset? DisconnectedSince(SourcePartition partition, DateTimeOffset now) =>
+        partition.Health == SourceState.Connected ? partition.Missed.LimitPassedAt(partition.Schedule, now, this.settings) : null;
 
     private SourcePartition PartitionOf(SourceInstanceId source)
     {
@@ -459,6 +468,10 @@ public sealed class ActivityLedger
         public DateTimeOffset LastSnapshotAt { get; set; } = DateTimeOffset.MinValue;
 
         public DateTimeOffset? LastSucceededAt { get; set; }
+
+        public Liveness.PollSchedule? Schedule { get; set; }
+
+        public Liveness.MissedPolls Missed { get; set; }
 
         public long ListingStamp { get; set; }
 
@@ -493,6 +506,8 @@ internal sealed class WorkRecord(WorkKey key, DateTimeOffset firstSeenAt)
     public DateTimeOffset LastConfirmedAt { get; set; }
 
     public DateTimeOffset LastObservedAt { get; set; }
+
+    public Liveness.MissedPolls Missed { get; set; }
 
     public long ListingStamp { get; set; }
 
@@ -535,6 +550,7 @@ internal sealed class WorkRecord(WorkKey key, DateTimeOffset firstSeenAt)
     public void Confirm(ListedWork entry, DateTimeOffset at, Liveness.ProcessFate lastFate)
     {
         this.LastConfirmedAt = at;
+        this.Missed = default;
         this.Entrypoint = entry.Entrypoint;
         this.LastFate = lastFate;
         if (entry is not ListedWork.RecognizedEntry listed)

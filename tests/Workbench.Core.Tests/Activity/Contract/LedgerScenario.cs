@@ -5,6 +5,9 @@ using Workbench.TestSupport;
 
 internal sealed class LedgerScenario
 {
+    private DateTimeOffset? lastScheduledAt;
+    private TimeSpan due = ContractFixture.PollEvery;
+
     public LedgerScenario(SourceInstanceId source)
     {
         this.Source = source;
@@ -20,14 +23,22 @@ internal sealed class LedgerScenario
 
     public SourceGeneration Generation { get; set; }
 
+    public TimeSpan Interval { get; set; } = ContractFixture.PollEvery;
+
     public DateTimeOffset Now => this.Clock.GetUtcNow();
 
     public ApplyOutcome Poll(ListedWork[] listing, ProcessIncarnation[] live, bool inventoryComplete = true) =>
-        this.Apply(SafeSourceBatch.Polled(this.Source, this.Generation, this.Next(), listing, live, inventoryComplete));
+        this.Apply(SafeSourceBatch.Polled(this.Source, this.Generation, this.OnSchedule(), this.Interval, listing, live, inventoryComplete));
 
-    public ApplyOutcome Fail(DisconnectReason reason) => this.Apply(SafeSourceBatch.Failed(this.Source, this.Generation, this.Next(), reason));
+    public ApplyOutcome Fail(DisconnectReason reason) => this.Apply(SafeSourceBatch.Failed(this.Source, this.Generation, this.OnSchedule(), this.Interval, reason));
 
-    public ApplyOutcome Hooks(params HookEvent[] events) => this.Apply(SafeSourceBatch.Hooks(this.Source, this.Generation, this.Next(), events));
+    public ApplyOutcome Unavailable() => this.Apply(SafeSourceBatch.Unavailable(this.Source, this.Generation, this.OnSchedule(), this.Interval));
+
+    public ApplyOutcome Hooks(params HookEvent[] events)
+    {
+        this.Clock.Advance(ContractFixture.PollEvery);
+        return this.Apply(SafeSourceBatch.Hooks(this.Source, this.Generation, this.Now, events));
+    }
 
     public ApplyOutcome Apply(SafeSourceBatch batch) => this.Ledger.Apply(batch);
 
@@ -39,9 +50,16 @@ internal sealed class LedgerScenario
         return (view.State, view.Reason);
     }
 
-    private DateTimeOffset Next()
+    private DateTimeOffset OnSchedule()
     {
-        this.Clock.Advance(ContractFixture.Settings.PollInterval);
+        var dueAt = (this.lastScheduledAt ?? this.Now) + this.due;
+        if (dueAt > this.Now)
+        {
+            this.Clock.Advance(dueAt - this.Now);
+        }
+
+        this.lastScheduledAt = this.Now;
+        this.due = this.Interval;
         return this.Now;
     }
 }

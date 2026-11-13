@@ -30,8 +30,8 @@ public sealed class CapabilityReportTests
         var server = Process(301);
 
         ledger.Apply(SafeSourceBatch.Polled(
-            CodexOwned, ledger.StartGeneration(CodexOwned), Start, [ListedWork.Entry(thread, Entrypoint.WorkbenchHosted, ListedStatus.Idle, incarnation: server)], [server], true));
-        ledger.Apply(SafeSourceBatch.Polled(CodexDesktop, ledger.StartGeneration(CodexDesktop), Start, [], [server], true));
+            CodexOwned, ledger.StartGeneration(CodexOwned), Start, PollEvery, [ListedWork.Entry(thread, Entrypoint.WorkbenchHosted, ListedStatus.Idle, incarnation: server)], [server], true));
+        ledger.Apply(SafeSourceBatch.Polled(CodexDesktop, ledger.StartGeneration(CodexDesktop), Start, PollEvery, [], [server], true));
 
         Assert.Equal(thread, Assert.Single(ledger.Work(CodexOwned)).Key);
         Assert.Empty(ledger.Work(CodexDesktop));
@@ -82,10 +82,10 @@ public sealed class CapabilityReportTests
 
         var key = Session(SessionA);
         var live = Process(101);
-        clock.Advance(Settings.PollInterval);
+        clock.Advance(PollEvery);
         Assert.Equal(
             ApplyOutcome.Applied,
-            ledger.Apply(SafeSourceBatch.Polled(Claude, generation, clock.GetUtcNow(), [ListedWork.Entry(key, Entrypoint.Background, ListedStatus.Idle, incarnation: live)], [live], true)));
+            ledger.Apply(SafeSourceBatch.Polled(Claude, generation, clock.GetUtcNow(), PollEvery, [ListedWork.Entry(key, Entrypoint.Background, ListedStatus.Idle, incarnation: live)], [live], true)));
         Assert.Equal(WorkState.Idle, ledger.Find(key)!.State);
     }
 

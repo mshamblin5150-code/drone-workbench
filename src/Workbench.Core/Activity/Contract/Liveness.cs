@@ -78,21 +78,21 @@ internal enum Signal
 
 public sealed class LivenessSettings
 {
-    public LivenessSettings(TimeSpan pollInterval, TimeSpan staleAfter, TimeSpan startingWindow, TimeSpan restartWindow)
+    public LivenessSettings(int missedPollLimit, TimeSpan missedPollMargin, TimeSpan startingWindow, TimeSpan restartWindow)
     {
-        ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(pollInterval, TimeSpan.Zero);
-        ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(staleAfter, pollInterval);
+        ArgumentOutOfRangeException.ThrowIfLessThan(missedPollLimit, 1);
+        ArgumentOutOfRangeException.ThrowIfLessThan(missedPollMargin, TimeSpan.Zero);
         ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(startingWindow, TimeSpan.Zero);
         ArgumentOutOfRangeException.ThrowIfLessThanOrEqual(restartWindow, TimeSpan.Zero);
-        this.PollInterval = pollInterval;
-        this.StaleAfter = staleAfter;
+        this.MissedPollLimit = missedPollLimit;
+        this.MissedPollMargin = missedPollMargin;
         this.StartingWindow = startingWindow;
         this.RestartWindow = restartWindow;
     }
 
-    public TimeSpan PollInterval { get; }
+    public int MissedPollLimit { get; }
 
-    public TimeSpan StaleAfter { get; }
+    public TimeSpan MissedPollMargin { get; }
 
     public TimeSpan StartingWindow { get; }
 
@@ -332,6 +332,21 @@ internal static class Liveness
     internal readonly record struct Transition(WorkState? From, Signal Signal, WorkState To, ReasonCode Reason)
     {
         public override string ToString() => $"{this.From?.ToString() ?? "(new)"} --{this.Signal}--> {this.To} / {this.Reason}";
+    }
+
+    internal readonly record struct PollSchedule(DateTimeOffset LastAttemptAt, TimeSpan Interval)
+    {
+        internal DateTimeOffset MissedAt(int expectedPolls, LivenessSettings settings) =>
+            this.LastAttemptAt + (this.Interval * expectedPolls) + settings.MissedPollMargin;
+    }
+
+    internal readonly record struct MissedPolls(int Count, DateTimeOffset? LimitReachedAt)
+    {
+        internal MissedPolls Add(DateTimeOffset at, LivenessSettings settings) =>
+            this.LimitReachedAt is not null ? this : new(this.Count + 1, this.Count + 1 == settings.MissedPollLimit ? at : null);
+
+        internal DateTimeOffset? LimitPassedAt(PollSchedule? schedule, DateTimeOffset now, LivenessSettings settings) =>
+            this.LimitReachedAt ?? (schedule?.MissedAt(settings.MissedPollLimit - this.Count, settings) is { } due && now > due ? due : null);
     }
 
     internal readonly record struct Prior(

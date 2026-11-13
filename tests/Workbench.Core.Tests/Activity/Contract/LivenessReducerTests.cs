@@ -6,6 +6,9 @@ using static Workbench.Core.Tests.Activity.Contract.ContractFixture;
 
 public sealed class LivenessReducerTests(ITestOutputHelper output)
 {
+    private static readonly TimeSpan FiveSeconds = TimeSpan.FromSeconds(5);
+    private static readonly TimeSpan SixtySeconds = TimeSpan.FromSeconds(60);
+
     private static readonly Signal[] Unlisted =
         [Signal.UnlistedAlive, Signal.UnlistedExited, Signal.UnlistedNoProcess, Signal.UnlistedLivenessUnknown, Signal.UnlistedAfterStop];
 
@@ -132,7 +135,7 @@ public sealed class LivenessReducerTests(ITestOutputHelper output)
         var before = scenario.View(key);
 
         scenario.Clock.Advance(TimeSpan.FromSeconds(1));
-        var late = scenario.Apply(SafeSourceBatch.Polled(Claude, older, scenario.Now, [], [], processInventoryComplete: true));
+        var late = scenario.Apply(SafeSourceBatch.Polled(Claude, older, scenario.Now, PollEvery, [], [], processInventoryComplete: true));
 
         Assert.Equal(ApplyOutcome.IgnoredOlderGeneration, late);
         Assert.Equal(before, scenario.View(key));
@@ -152,8 +155,8 @@ public sealed class LivenessReducerTests(ITestOutputHelper output)
         elsewhere.StartGeneration(Claude);
         var unissued = elsewhere.StartGeneration(Claude);
 
-        scenario.Clock.Advance(Settings.PollInterval);
-        var outcome = scenario.Apply(SafeSourceBatch.Polled(Claude, unissued, scenario.Now, [], [], processInventoryComplete: true));
+        scenario.Clock.Advance(PollEvery);
+        var outcome = scenario.Apply(SafeSourceBatch.Polled(Claude, unissued, scenario.Now, PollEvery, [], [], processInventoryComplete: true));
 
         Assert.Equal(ApplyOutcome.RejectedUnissuedGeneration, outcome);
         Assert.Equal(before, scenario.View(key));
@@ -174,30 +177,76 @@ public sealed class LivenessReducerTests(ITestOutputHelper output)
     }
 
     [Fact]
-    public void StalenessIsDerivedAtReadTimeFromTheInjectedClock()
+    public void LV9_AtAFiveSecondIntervalTheSourceAndItsWorkGoStaleOnlyOnceTheMissedPollLimitPasses()
     {
-        var scenario = new LedgerScenario(Claude);
+        var scenario = new LedgerScenario(Claude) { Interval = FiveSeconds };
         var key = Session(SessionA);
         var live = Process(101);
         scenario.Poll([ListedWork.Entry(key, Entrypoint.Background, ListedStatus.Idle, incarnation: live)], [live]);
-        var confirmedAt = scenario.Now;
+        var polledAt = scenario.Now;
+        var limitPassesAt = polledAt + (FiveSeconds * Settings.MissedPollLimit) + Settings.MissedPollMargin;
 
-        scenario.Clock.Advance(Settings.StaleAfter);
-        Assert.Equal((WorkState.Idle, ReasonCode.SourceReported), scenario.StateOf(key));
-        Assert.Equal(SourceState.Connected, scenario.Ledger.Source(Claude)!.State);
+        scenario.Clock.Advance((FiveSeconds * (Settings.MissedPollLimit - 1)) + Settings.MissedPollMargin + TimeSpan.FromSeconds(1));
+        AssertFresh(scenario, key, WorkState.Idle);
+        scenario.Clock.Advance(limitPassesAt - scenario.Now);
+        AssertFresh(scenario, key, WorkState.Idle);
 
-        scenario.Clock.Advance(TimeSpan.FromSeconds(1));
+        scenario.Clock.Advance(TimeSpan.FromTicks(1));
         var stale = scenario.View(key);
         var source = scenario.Ledger.Source(Claude)!;
         Assert.Equal((WorkState.Stale, ReasonCode.SourceDisconnected), (stale.State, stale.Reason));
-        Assert.Equal(confirmedAt + Settings.StaleAfter, stale.StateSince);
+        Assert.Equal(limitPassesAt, stale.StateSince);
+        Assert.Equal(polledAt, stale.LastConfirmedAt);
         Assert.Equal((SourceState.Disconnected, DisconnectReason.Timeout), (source.State, source.Disconnect));
     }
 
     [Fact]
-    public void AnItemThePollingSourceStopsListingGoesStaleForLackOfConfirmation()
+    public void LV9_SwitchingToASixtySecondIntervalKeepsWorkFreshBetweenOnTimePolls()
     {
-        var scenario = new LedgerScenario(Claude);
+        var scenario = new LedgerScenario(Claude) { Interval = FiveSeconds };
+        var key = Session(SessionA);
+        var live = Process(101);
+        var idle = ListedWork.Entry(key, Entrypoint.Background, ListedStatus.Idle, incarnation: live);
+        scenario.Poll([idle], [live]);
+        scenario.Poll([idle], [live]);
+        Assert.True(TimeSpan.FromSeconds(59) > UntilMissedPollLimit(FiveSeconds));
+
+        scenario.Interval = SixtySeconds;
+        scenario.Poll([idle], [live]);
+        scenario.Clock.Advance(TimeSpan.FromSeconds(59));
+        AssertFresh(scenario, key, WorkState.Idle);
+
+        scenario.Poll([idle], [live]);
+        scenario.Clock.Advance(TimeSpan.FromSeconds(59));
+        AssertFresh(scenario, key, WorkState.Idle);
+    }
+
+    [Fact]
+    public void LV9_SwitchingBackToAFiveSecondIntervalStalesWorkAfterTheLimitOfFiveSecondPolls()
+    {
+        var scenario = new LedgerScenario(Claude) { Interval = SixtySeconds };
+        var key = Session(SessionA);
+        var live = Process(101);
+        var busy = ListedWork.Entry(key, Entrypoint.Background, ListedStatus.Busy, incarnation: live);
+        scenario.Poll([busy], [live]);
+        scenario.Interval = FiveSeconds;
+        scenario.Poll([busy], [live]);
+        var polledAt = scenario.Now;
+
+        scenario.Clock.Advance(UntilMissedPollLimit(FiveSeconds));
+        AssertFresh(scenario, key, WorkState.Busy);
+        scenario.Clock.Advance(TimeSpan.FromTicks(1));
+
+        var stale = scenario.View(key);
+        Assert.Equal((WorkState.Stale, ReasonCode.SourceDisconnected), (stale.State, stale.Reason));
+        Assert.Equal(polledAt + UntilMissedPollLimit(FiveSeconds), stale.StateSince);
+        Assert.Equal(SourceState.Disconnected, scenario.Ledger.Source(Claude)!.State);
+    }
+
+    [Fact]
+    public void LV9_AnUnlistedItemGoesStaleAfterTheLimitOfPollsThatDidNotListItNotAfterElapsedTime()
+    {
+        var scenario = new LedgerScenario(Claude) { Interval = FiveSeconds };
         var listed = Session(SessionA);
         var dropped = Session(SessionB);
         var live = Process(101);
@@ -205,21 +254,29 @@ public sealed class LivenessReducerTests(ITestOutputHelper output)
         var keep = ListedWork.Entry(listed, Entrypoint.InteractiveCli, ListedStatus.Idle, incarnation: live);
         scenario.Poll([keep, ListedWork.Entry(dropped, Entrypoint.InteractiveCli, ListedStatus.Idle, incarnation: orphan)], [live, orphan]);
         var lastListedAt = scenario.Now;
+        scenario.Poll([keep], [live, orphan]);
 
-        while (scenario.Now - lastListedAt <= Settings.StaleAfter)
+        scenario.Interval = SixtySeconds;
+        for (var missed = 2; missed < Settings.MissedPollLimit; missed++)
         {
             scenario.Poll([keep], [live, orphan]);
         }
 
+        scenario.Clock.Advance(TimeSpan.FromSeconds(59));
+        Assert.True(scenario.Now - lastListedAt > UntilMissedPollLimit(FiveSeconds));
+        Assert.Equal((WorkState.Unknown, ReasonCode.NotInAgentView), scenario.StateOf(dropped));
+
+        scenario.Poll([keep], [live, orphan]);
+
         var stale = scenario.View(dropped);
+        Assert.Equal((WorkState.Stale, ReasonCode.NoConfirmation), (stale.State, stale.Reason));
+        Assert.Equal(scenario.Now, stale.StateSince);
         Assert.Equal(SourceState.Connected, scenario.Ledger.Source(Claude)!.State);
         Assert.Equal((WorkState.Idle, ReasonCode.SourceReported), scenario.StateOf(listed));
-        Assert.Equal((WorkState.Stale, ReasonCode.NoConfirmation), (stale.State, stale.Reason));
-        Assert.Equal(lastListedAt + Settings.StaleAfter, stale.StateSince);
     }
 
     [Fact]
-    public void HooksDuringPollSilenceConfirmNothingAndTheWorkGoesStaleWithItsSilentSource()
+    public void LV9_HooksDuringPollSilenceConfirmNothingAndTheWorkGoesStaleWithItsSilentSource()
     {
         var scenario = new LedgerScenario(Claude);
         var key = Session(SessionA);
@@ -227,7 +284,7 @@ public sealed class LivenessReducerTests(ITestOutputHelper output)
         scenario.Poll([ListedWork.Entry(key, Entrypoint.Background, ListedStatus.Busy, incarnation: live)], [live]);
         var polledAt = scenario.Now;
 
-        while (scenario.Now - polledAt <= Settings.StaleAfter)
+        while (scenario.Now <= polledAt + UntilMissedPollLimit(PollEvery))
         {
             scenario.Hooks(HookEvent.Notification(key, WaitingFor.PermissionPrompt));
         }
@@ -235,6 +292,7 @@ public sealed class LivenessReducerTests(ITestOutputHelper output)
         var view = scenario.View(key);
         Assert.Equal(SourceState.Disconnected, scenario.Ledger.Source(Claude)!.State);
         Assert.Equal((WorkState.Stale, ReasonCode.SourceDisconnected), (view.State, view.Reason));
+        Assert.Equal(polledAt + UntilMissedPollLimit(PollEvery), view.StateSince);
         Assert.Equal(polledAt, view.LastConfirmedAt);
     }
 
@@ -262,16 +320,25 @@ public sealed class LivenessReducerTests(ITestOutputHelper output)
     {
         var scenario = new LedgerScenario(Claude);
         var key = Session(SessionA);
+        var dropped = Session(SessionB);
         var live = Process(101);
-        scenario.Clock.Advance(Settings.PollInterval);
-        var batch = SafeSourceBatch.Polled(
-            Claude, scenario.Generation, scenario.Now, [ListedWork.Entry(key, Entrypoint.Background, ListedStatus.Idle, incarnation: live)], [live], true);
+        var orphan = Process(102);
+        var keep = ListedWork.Entry(key, Entrypoint.Background, ListedStatus.Idle, incarnation: live);
+        scenario.Poll([keep, ListedWork.Entry(dropped, Entrypoint.Background, ListedStatus.Idle, incarnation: orphan)], [live, orphan]);
+        for (var missed = 1; missed < Settings.MissedPollLimit - 1; missed++)
+        {
+            scenario.Poll([keep], [live, orphan]);
+        }
+
+        scenario.Clock.Advance(PollEvery);
+        var batch = SafeSourceBatch.Polled(Claude, scenario.Generation, scenario.Now, PollEvery, [keep], [live, orphan], true);
         scenario.Apply(batch);
-        var once = scenario.View(key);
+        var once = (scenario.View(key), scenario.View(dropped));
+        Assert.Equal(WorkState.Unknown, once.Item2.State);
 
         Assert.Equal(ApplyOutcome.Applied, scenario.Apply(batch));
 
-        Assert.Equal(once, scenario.View(key));
+        Assert.Equal(once, (scenario.View(key), scenario.View(dropped)));
     }
 
     [Fact]
@@ -321,9 +388,8 @@ public sealed class LivenessReducerTests(ITestOutputHelper output)
         var key = Session(SessionA);
         var live = Process(101);
         scenario.Poll([ListedWork.Entry(key, Entrypoint.Background, ListedStatus.Idle, incarnation: live)], [live]);
-        scenario.Clock.Advance(Settings.PollInterval);
 
-        scenario.Apply(SafeSourceBatch.Unavailable(Claude, scenario.Generation, scenario.Now));
+        scenario.Unavailable();
 
         Assert.Equal((WorkState.Stale, ReasonCode.SourceUnavailable), scenario.StateOf(key));
         Assert.Equal(SourceState.Unavailable, scenario.Ledger.Source(Claude)!.State);
@@ -405,5 +471,11 @@ public sealed class LivenessReducerTests(ITestOutputHelper output)
         Assert.Equal((WorkState.Busy, ReasonCode.SourceReported), scenario.StateOf(unknownType));
         Assert.Equal(WaitingFor.Unknown, scenario.View(unknownType).WaitingFor);
         Assert.Null(scenario.Ledger.Find(Session(SessionC)));
+    }
+
+    private static void AssertFresh(LedgerScenario scenario, WorkKey key, WorkState state)
+    {
+        Assert.Equal((state, ReasonCode.SourceReported), scenario.StateOf(key));
+        Assert.Equal((SourceState.Connected, (DisconnectReason?)null), (scenario.Ledger.Source(scenario.Source)!.State, scenario.Ledger.Source(scenario.Source)!.Disconnect));
     }
 }

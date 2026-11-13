@@ -14,9 +14,11 @@ internal static class ContractFixture
 
     public static readonly DateTimeOffset Start = new(2026, 1, 5, 9, 0, 0, TimeSpan.Zero);
 
+    public static readonly TimeSpan PollEvery = TimeSpan.FromSeconds(2);
+
     public static readonly LivenessSettings Settings = new(
-        pollInterval: TimeSpan.FromSeconds(2),
-        staleAfter: TimeSpan.FromSeconds(10),
+        missedPollLimit: 3,
+        missedPollMargin: TimeSpan.FromMilliseconds(500),
         startingWindow: TimeSpan.FromSeconds(15),
         restartWindow: TimeSpan.FromSeconds(30));
 
@@ -29,6 +31,8 @@ internal static class ContractFixture
     public static SourceInstanceId CodexOwned { get; } = SourceInstanceId.Mint(SourceKind.Codex, Key, "endpoint:workbench-owned-socket");
 
     public static ManualClock Clock() => new(Start);
+
+    public static TimeSpan UntilMissedPollLimit(TimeSpan interval) => (interval * Settings.MissedPollLimit) + Settings.MissedPollMargin;
 
     public static ProcessIncarnation Process(int pid, int startedMinutesBefore = 5) => new(pid, Start.AddMinutes(-startedMinutesBefore));
 

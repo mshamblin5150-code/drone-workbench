@@ -153,7 +153,7 @@ public sealed class ReducerBenchmarks(ITestOutputHelper output)
             {
                 this.busy = !this.busy;
                 expected[i] = this.busy ? WorkState.Busy : WorkState.Idle;
-                batches[i] = this.HotBatch(start + (Settings.PollInterval * (i + 1)), this.busy ? ListedStatus.Busy : ListedStatus.Idle);
+                batches[i] = this.HotBatch(start + (PollEvery * (i + 1)), this.busy ? ListedStatus.Busy : ListedStatus.Idle);
             }
 
             var apply = new double[applies];
@@ -166,7 +166,7 @@ public sealed class ReducerBenchmarks(ITestOutputHelper output)
             var gen0 = GC.CollectionCount(0);
             for (var i = 0; i < applies; i++)
             {
-                this.clock.Advance(Settings.PollInterval);
+                this.clock.Advance(PollEvery);
                 var allocatedBefore = GC.GetAllocatedBytesForCurrentThread();
                 var began = Stopwatch.GetTimestamp();
                 var outcome = this.ledger.Apply(batches[i]);
@@ -185,7 +185,7 @@ public sealed class ReducerBenchmarks(ITestOutputHelper output)
 
             for (var i = 0; i < wholeSourceReads; i++)
             {
-                this.clock.Advance(Settings.PollInterval);
+                this.clock.Advance(PollEvery);
                 var allocatedBefore = GC.GetAllocatedBytesForCurrentThread();
                 var began = Stopwatch.GetTimestamp();
                 var outcome = this.ledger.Apply(batches[applies + i]);
@@ -223,17 +223,19 @@ public sealed class ReducerBenchmarks(ITestOutputHelper output)
             Claude,
             this.generation,
             at,
+            PollEvery,
             this.hot.Select((key, i) => ListedWork.Entry(key, Entrypoint.Background, status, incarnation: this.hotProcesses[i])),
             this.hotProcesses,
             processInventoryComplete: true);
 
         private void Poll(IEnumerable<ListedWork> history, IEnumerable<ProcessIncarnation> historyProcesses)
         {
-            this.clock.Advance(Settings.PollInterval);
+            this.clock.Advance(PollEvery);
             var batch = SafeSourceBatch.Polled(
                 Claude,
                 this.generation,
                 this.clock.GetUtcNow(),
+                PollEvery,
                 this.hot.Select((key, i) => ListedWork.Entry(key, Entrypoint.Background, ListedStatus.Idle, incarnation: this.hotProcesses[i])).Concat(history),
                 this.hotProcesses.Concat(historyProcesses),
                 processInventoryComplete: true);

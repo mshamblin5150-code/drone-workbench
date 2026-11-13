@@ -51,7 +51,7 @@ public sealed class ReplayTests(ITestOutputHelper output)
         var before = scenario.Ledger.Work(Claude);
 
         scenario.Clock.Advance(TimeSpan.FromSeconds(1));
-        var outcome = scenario.Apply(SafeSourceBatch.Polled(Claude, older, scenario.Now, [], [], processInventoryComplete: true));
+        var outcome = scenario.Apply(SafeSourceBatch.Polled(Claude, older, scenario.Now, PollEvery, [], [], processInventoryComplete: true));
 
         output.WriteLine($"late {older} batch after {scenario.Generation}: {outcome}");
         Assert.Equal(ApplyOutcome.IgnoredOlderGeneration, outcome);
@@ -292,6 +292,7 @@ public sealed class ReplayTests(ITestOutputHelper output)
                 Claude,
                 generation,
                 clock.GetUtcNow(),
+                PollEvery,
                 [ListedWork.Entry(Key, Entrypoint.Background, ListedStatus.Idle, incarnation: Live, ownership: OwnershipEvidence.SameUserBackgroundListing, reference: reference)],
                 [Live],
                 processInventoryComplete: true);
