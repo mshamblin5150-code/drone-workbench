@@ -281,7 +281,7 @@ internal static class Liveness
             return null;
         }
 
-        return last is { } schedule && at > schedule.MissedAt(1, settings) ? at : settledSince ?? at;
+        return last is { } schedule && at > schedule.LastAttemptAt + schedule.Interval + settings.MissedPollMargin ? at : settledSince ?? at;
     }
 
     internal static Signal ClassifyUnlisted(in Prior prior, ProcessFate lastFate, bool inventoryComplete, DateTimeOffset? settledSince, DateTimeOffset observedAt, LivenessSettings settings)
@@ -359,10 +359,28 @@ internal static class Liveness
         public override string ToString() => $"{this.From?.ToString() ?? "(new)"} --{this.Signal}--> {this.To} / {this.Reason}";
     }
 
-    internal readonly record struct PollSchedule(DateTimeOffset LastAttemptAt, TimeSpan Interval)
+    internal readonly record struct PollSchedule(DateTimeOffset LastAttemptAt, DateTimeOffset FilledDueAt, TimeSpan Interval)
     {
+        // A batch fills the latest expected poll already due, or the next one if it came early. Later expected polls
+        // follow the one it filled, so a late batch leaves them where silence would have.
+        internal static PollSchedule Next(PollSchedule? previous, DateTimeOffset attemptAt, TimeSpan interval)
+        {
+            if (previous is not { } schedule)
+            {
+                return new(attemptAt, attemptAt, interval);
+            }
+
+            var expectedPolls = Math.Max(1, (attemptAt - schedule.FilledDueAt).Ticks / schedule.Interval.Ticks);
+            var dueAt = schedule.FilledDueAt + TimeSpan.FromTicks(expectedPolls * schedule.Interval.Ticks);
+            return new(attemptAt, dueAt < attemptAt ? dueAt : attemptAt, interval);
+        }
+
         internal DateTimeOffset MissedAt(int expectedPolls, LivenessSettings settings) =>
-            this.LastAttemptAt + (this.Interval * expectedPolls) + settings.MissedPollMargin;
+            this.FilledDueAt + (this.Interval * expectedPolls) + settings.MissedPollMargin;
+
+        // A batch that overran its expected poll is that poll's miss, counted from when the poll went overdue.
+        internal DateTimeOffset MissCountsAt(LivenessSettings settings) =>
+            this.FilledDueAt + settings.MissedPollMargin < this.LastAttemptAt ? this.FilledDueAt + settings.MissedPollMargin : this.LastAttemptAt;
     }
 
     internal readonly record struct MissedPolls(int Count, DateTimeOffset? LimitReachedAt)
@@ -370,20 +388,19 @@ internal static class Liveness
         internal MissedPolls Add(DateTimeOffset at, LivenessSettings settings) =>
             this.LimitReachedAt is not null ? this : new(this.Count + 1, this.Count + 1 == settings.MissedPollLimit ? at : null);
 
-        internal MissedPolls Elapse(PollSchedule? schedule, DateTimeOffset at, LivenessSettings settings)
+        internal MissedPolls Fill(PollSchedule? previous, PollSchedule next, LivenessSettings settings)
         {
-            if (schedule is not { } previous)
-            {
-                return this;
-            }
-
+            var at = next.MissCountsAt(settings);
             var missed = this;
-            for (var expected = 1; missed.LimitReachedAt is null && previous.MissedAt(expected, settings) < at; expected++)
+            if (previous is { } schedule)
             {
-                missed = missed.Add(previous.MissedAt(expected, settings), settings);
+                for (var expected = 1; missed.LimitReachedAt is null && schedule.MissedAt(expected, settings) < at; expected++)
+                {
+                    missed = missed.Add(schedule.MissedAt(expected, settings), settings);
+                }
             }
 
-            return missed;
+            return missed.Add(at, settings);
         }
 
         internal DateTimeOffset? LimitPassedAt(PollSchedule? schedule, DateTimeOffset now, LivenessSettings settings) =>

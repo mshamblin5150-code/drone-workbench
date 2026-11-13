@@ -390,7 +390,7 @@ public sealed class LivenessReducerTests(ITestOutputHelper output)
     }
 
     [Fact]
-    public void LV9_ALateFailedAttemptAddsItselfToTheExpectedPollsMissedBeforeIt()
+    public void LV9_AFailedAttemptAfterSilenceAddsItselfToTheExpectedPollsMissedBeforeIt()
     {
         var scenario = new LedgerScenario(Claude);
         var key = Session(SessionA);
@@ -410,14 +410,35 @@ public sealed class LivenessReducerTests(ITestOutputHelper output)
         }
     }
 
+    [Fact]
+    public void LV9_ALateFailedAttemptFillsTheExpectedPollItOverranSoSilenceAfterItDisconnectsWhenSilenceAloneWould()
+    {
+        var scenario = new LedgerScenario(Claude);
+        var key = Session(SessionA);
+        var live = Process(101);
+        scenario.Poll([ListedWork.Entry(key, Entrypoint.Background, ListedStatus.Busy, incarnation: live)], [live]);
+        var limitPassesAt = scenario.Now + UntilMissedPollLimit(PollEvery);
+        scenario.Clock.Advance(PollEvery + Settings.MissedPollMargin + TimeSpan.FromMilliseconds(100));
+        scenario.Fail(DisconnectReason.TransportError);
+
+        scenario.Clock.Advance(limitPassesAt - scenario.Now);
+        AssertFresh(scenario, key, WorkState.Busy);
+        scenario.Clock.Advance(TimeSpan.FromTicks(1));
+
+        var source = scenario.Ledger.Source(Claude)!;
+        var view = scenario.View(key);
+        Assert.Equal((SourceState.Disconnected, DisconnectReason.TransportError), (source.State, source.Disconnect));
+        Assert.Equal((WorkState.Stale, ReasonCode.SourceDisconnected, limitPassesAt), (view.State, view.Reason, view.StateSince));
+    }
+
     [Theory]
-    [InlineData(0, SourceState.Connected)]
-    [InlineData(1, SourceState.Disconnected)]
-    public void LV9_AnExpectedPollBeforeAFailedAttemptCountsOnlyOnceItsMarginHasPassed(long ticksPastTheMargin, SourceState expected)
+    [InlineData(-1, SourceState.Connected)]
+    [InlineData(0, SourceState.Disconnected)]
+    public void LV9_AFailedAttemptFillsTheLatestExpectedPollAlreadyDueAndEachEarlierOneIsAMiss(long ticksFromTheLimitthExpectedPoll, SourceState expected)
     {
         var scenario = new LedgerScenario(Claude);
         scenario.Poll([], []);
-        scenario.Clock.Advance((PollEvery * (Settings.MissedPollLimit - 1)) + Settings.MissedPollMargin + TimeSpan.FromTicks(ticksPastTheMargin));
+        scenario.Clock.Advance((PollEvery * Settings.MissedPollLimit) + TimeSpan.FromTicks(ticksFromTheLimitthExpectedPoll));
 
         scenario.Fail(DisconnectReason.Timeout);
 
@@ -448,6 +469,28 @@ public sealed class LivenessReducerTests(ITestOutputHelper output)
     }
 
     [Fact]
+    public void LV9_AnUnavailableAttemptIsOneMoreMissForAnItemThatPollsStoppedListing()
+    {
+        var scenario = new LedgerScenario(Claude);
+        var listed = Session(SessionA);
+        var dropped = Session(SessionB);
+        var live = Process(101);
+        var orphan = Process(102);
+        var keep = ListedWork.Entry(listed, Entrypoint.InteractiveCli, ListedStatus.Idle, incarnation: live);
+        scenario.Poll([keep, ListedWork.Entry(dropped, Entrypoint.InteractiveCli, ListedStatus.Idle, incarnation: orphan)], [live, orphan]);
+        for (var unlisted = 2; unlisted < Settings.MissedPollLimit; unlisted++)
+        {
+            scenario.Poll([keep], [live, orphan]);
+        }
+
+        scenario.Unavailable();
+        scenario.Poll([keep], [live, orphan]);
+
+        Assert.Equal((WorkState.Stale, ReasonCode.NoConfirmation), scenario.StateOf(dropped));
+        Assert.Equal(SourceState.Connected, scenario.Ledger.Source(Claude)!.State);
+    }
+
+    [Fact]
     public void LV9_ALatePollCountsTheExpectedPollsMissedBeforeItAgainstAnItemItDoesNotList()
     {
         var scenario = new LedgerScenario(Claude);
@@ -458,13 +501,42 @@ public sealed class LivenessReducerTests(ITestOutputHelper output)
         var keep = ListedWork.Entry(listed, Entrypoint.InteractiveCli, ListedStatus.Idle, incarnation: live);
         scenario.Poll([keep, ListedWork.Entry(dropped, Entrypoint.InteractiveCli, ListedStatus.Idle, incarnation: orphan)], [live, orphan]);
         scenario.Poll([keep], [live, orphan]);
+        var unlistedAt = scenario.Now;
         Assert.Equal((WorkState.Unknown, ReasonCode.NotInAgentView), scenario.StateOf(dropped));
 
-        scenario.Clock.Advance(PollEvery + Settings.MissedPollMargin + TimeSpan.FromMilliseconds(100));
+        scenario.Clock.Advance((PollEvery * 2) + Settings.MissedPollMargin + TimeSpan.FromMilliseconds(100));
         scenario.Poll([keep], [live, orphan]);
 
         var stale = scenario.View(dropped);
-        Assert.Equal((WorkState.Stale, ReasonCode.NoConfirmation, scenario.Now), (stale.State, stale.Reason, stale.StateSince));
+        Assert.Equal((WorkState.Stale, ReasonCode.NoConfirmation, unlistedAt + (PollEvery * 2) + Settings.MissedPollMargin), (stale.State, stale.Reason, stale.StateSince));
+        Assert.Equal(SourceState.Connected, scenario.Ledger.Source(Claude)!.State);
+        Assert.Equal((WorkState.Idle, ReasonCode.SourceReported), scenario.StateOf(listed));
+    }
+
+    [Fact]
+    public void LV9_PollsThatEachOverrunTheirExpectedPollStaleAnItemTheyDoNotListAtTheLimitthPoll()
+    {
+        var scenario = new LedgerScenario(Claude);
+        var listed = Session(SessionA);
+        var dropped = Session(SessionB);
+        var live = Process(101);
+        var orphan = Process(102);
+        var keep = ListedWork.Entry(listed, Entrypoint.InteractiveCli, ListedStatus.Idle, incarnation: live);
+        scenario.Poll([keep, ListedWork.Entry(dropped, Entrypoint.InteractiveCli, ListedStatus.Idle, incarnation: orphan)], [live, orphan]);
+        var lastListedAt = scenario.Now;
+        var late = PollEvery + Settings.MissedPollMargin + TimeSpan.FromMilliseconds(100);
+        for (var unlisted = 1; unlisted < Settings.MissedPollLimit; unlisted++)
+        {
+            scenario.Clock.Advance(late);
+            scenario.Poll([keep], [live, orphan]);
+            Assert.Equal((WorkState.Unknown, ReasonCode.NotInAgentView), scenario.StateOf(dropped));
+        }
+
+        scenario.Clock.Advance(late);
+        scenario.Poll([keep], [live, orphan]);
+
+        var stale = scenario.View(dropped);
+        Assert.Equal((WorkState.Stale, ReasonCode.NoConfirmation, lastListedAt + UntilMissedPollLimit(PollEvery)), (stale.State, stale.Reason, stale.StateSince));
         Assert.Equal(SourceState.Connected, scenario.Ledger.Source(Claude)!.State);
         Assert.Equal((WorkState.Idle, ReasonCode.SourceReported), scenario.StateOf(listed));
     }

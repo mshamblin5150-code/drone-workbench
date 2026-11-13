@@ -300,6 +300,18 @@ public sealed class ActivityLedger
         record.StateGeneration = generation;
     }
 
+    private static void ApplyAbsence(SourcePartition partition, SafeSourceBatch.SourceAbsent absent)
+    {
+        foreach (var record in partition.Tracked)
+        {
+            Transit(record, Signal.SourceUnavailable, absent.ObservedAt, Channel.Poll, absent.Generation);
+        }
+
+        partition.Health = SourceState.Unavailable;
+        partition.Missed = default;
+        partition.LastFailure = null;
+    }
+
     private ApplyOutcome ApplyScheduled(SourcePartition partition, SafeSourceBatch.Scheduled batch)
     {
         if (batch.ObservedAt <= partition.LastSnapshotAt)
@@ -310,10 +322,13 @@ public sealed class ActivityLedger
 
         var completePoll = batch is SafeSourceBatch.PollSnapshot { ProcessInventoryComplete: true };
         partition.SettledSince = Liveness.SettledSince(partition.SettledSince, partition.Schedule, batch.ObservedAt, completePoll, this.settings);
-        partition.Missed = partition.Missed.Elapse(partition.Schedule, batch.ObservedAt, this.settings);
+        var schedule = Liveness.PollSchedule.Next(partition.Schedule, batch.ObservedAt, batch.PollInterval);
+
+        // Every subject takes the batch as a miss here, and the confirmations the batch carries reset theirs below.
+        partition.Missed = partition.Missed.Fill(partition.Schedule, schedule, this.settings);
         foreach (var record in partition.Tracked)
         {
-            record.Missed = record.Missed.Elapse(partition.Schedule, batch.ObservedAt, this.settings);
+            record.Missed = record.Missed.Fill(partition.Schedule, schedule, this.settings);
         }
 
         switch (batch)
@@ -322,40 +337,16 @@ public sealed class ActivityLedger
                 this.ApplyPoll(partition, poll);
                 break;
             case SafeSourceBatch.PollFailure failure:
-                this.ApplyFailure(partition, failure);
+                partition.LastFailure = failure.Reason;
                 break;
             case SafeSourceBatch.SourceAbsent absent:
-                this.ApplyAbsence(partition, absent);
+                ApplyAbsence(partition, absent);
                 break;
         }
 
         partition.LastSnapshotAt = batch.ObservedAt;
-        partition.Schedule = new Liveness.PollSchedule(batch.ObservedAt, batch.PollInterval);
+        partition.Schedule = schedule;
         return ApplyOutcome.Applied;
-    }
-
-    private void ApplyFailure(SourcePartition partition, SafeSourceBatch.PollFailure failure)
-    {
-        foreach (var record in partition.Tracked)
-        {
-            record.Missed = record.Missed.Add(failure.ObservedAt, this.settings);
-        }
-
-        partition.Missed = partition.Missed.Add(failure.ObservedAt, this.settings);
-        partition.LastFailure = failure.Reason;
-    }
-
-    private void ApplyAbsence(SourcePartition partition, SafeSourceBatch.SourceAbsent absent)
-    {
-        foreach (var record in partition.Tracked)
-        {
-            record.Missed = record.Missed.Add(absent.ObservedAt, this.settings);
-            Transit(record, Signal.SourceUnavailable, absent.ObservedAt, Channel.Poll, absent.Generation);
-        }
-
-        partition.Health = SourceState.Unavailable;
-        partition.Missed = default;
-        partition.LastFailure = null;
     }
 
     private void ApplyPoll(SourcePartition partition, SafeSourceBatch.PollSnapshot poll)
@@ -387,7 +378,6 @@ public sealed class ActivityLedger
         {
             if (record.ListingStamp != stamp)
             {
-                record.Missed = record.Missed.Add(poll.ObservedAt, this.settings);
                 record.LastFate = Liveness.FateOf(record.LastIncarnation, poll.LiveProcesses, poll.ProcessInventoryComplete);
                 var signal = Liveness.ClassifyUnlisted(record.Prior, record.LastFate, poll.ProcessInventoryComplete, partition.SettledSince, poll.ObservedAt, this.settings);
                 record.AbsentSince = signal == Signal.UnlistedNoProcess ? record.AbsentSince ?? poll.ObservedAt : null;
