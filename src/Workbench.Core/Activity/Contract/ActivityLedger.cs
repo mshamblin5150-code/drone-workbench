@@ -252,6 +252,15 @@ public sealed class ActivityLedger
         _ => false,
     };
 
+    private static bool OwnershipFits(WorkView target) => target.Ownership switch
+    {
+        OwnershipEvidence.SameUserBackgroundListing =>
+            target.Key.Source.Kind == SourceKind.Claude && target.Key.Kind == WorkKind.Session && target.Entrypoint == Entrypoint.Background,
+        OwnershipEvidence.WorkbenchOwnedServer =>
+            target.Key.Source.Kind == SourceKind.Codex && target.Key.Kind == WorkKind.Command && target.Entrypoint == Entrypoint.Headless,
+        _ => false,
+    };
+
     private static RefusalReason RefusalFor(DisabledReason disabled) => RefusalPrecedence.First(entry => disabled.HasFlag(entry.Disabled)).Refusal;
 
     private static void ApplySourceWide(SourcePartition partition, SafeSourceBatch batch, Signal signal, SourceState health, DisconnectReason? disconnect)
@@ -379,7 +388,7 @@ public sealed class ActivityLedger
             return Refuse(RefusalReason.StaleTarget);
         }
 
-        if (record.Ownership == OwnershipEvidence.None)
+        if (!OwnershipFits(view))
         {
             return Refuse(RefusalReason.NoOwnershipEvidence);
         }
@@ -515,6 +524,7 @@ internal sealed class WorkRecord(WorkKey key, DateTimeOffset firstSeenAt)
         this.FirstSeenAt = at;
         this.EverLive = false;
         this.SessionEndSeen = false;
+        this.Ownership = OwnershipEvidence.None;
     }
 
     public void Confirm(ListedWork entry, DateTimeOffset at, Liveness.ProcessFate lastFate)

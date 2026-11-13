@@ -225,6 +225,52 @@ public sealed class ControlReceiptTests
         Assert.Equal(RefusalReason.VersionChanged, Refusal(scenario, owned, live));
     }
 
+    [Fact]
+    public void OwnershipCountsOnlyWhenItsKindFitsTheWorksSourceAndEntrypoint()
+    {
+        var claude = new LedgerScenario(Claude);
+        var session = Session(SessionA);
+        var live = Process(101);
+        Assert.True(ControlReference.TrySourceStable(session, ShortA, out var sessionReference));
+        claude.Poll(
+            [ListedWork.Entry(session, Entrypoint.Background, ListedStatus.Idle, incarnation: live, ownership: OwnershipEvidence.WorkbenchOwnedServer, reference: sessionReference)],
+            [live]);
+        claude.Ledger.Admit(CapabilityReportTests.ClaudeReport(claude.Generation, "2.1.312"));
+
+        Assert.Equal(RefusalReason.NoOwnershipEvidence, Refusal(claude, session, live));
+        Assert.Equal(RefusalReason.NoOwnershipEvidence, TerminateRefusal(Entrypoint.Headless, OwnershipEvidence.SameUserBackgroundListing));
+        Assert.Equal(RefusalReason.NoOwnershipEvidence, TerminateRefusal(Entrypoint.Desktop, OwnershipEvidence.WorkbenchOwnedServer));
+        Assert.Equal(RefusalReason.NoConformance, TerminateRefusal(Entrypoint.Headless, OwnershipEvidence.WorkbenchOwnedServer));
+
+        static RefusalReason? TerminateRefusal(Entrypoint entrypoint, OwnershipEvidence ownership)
+        {
+            var codex = new LedgerScenario(CodexOwned);
+            var server = Process(301);
+            var command = WorkKey.Command(CodexOwned, codex.Generation, "proc-7");
+            Assert.True(ControlReference.TryConnectionScoped(command, "proc-7", out var reference));
+            var usable = entrypoint == Entrypoint.Desktop ? null : reference;
+            codex.Poll([ListedWork.Entry(command, entrypoint, ListedStatus.Busy, incarnation: server, ownership: ownership, reference: usable)], [server]);
+            codex.Ledger.Admit(CodexOwnedReport(codex.Generation, entrypoint));
+            return codex.Ledger.Request(NewId(), ControlAction.TerminateOwnedCommand, command, server, CallerScope.Operator).Refusal;
+        }
+    }
+
+    [Fact]
+    public void OwnershipFromAnEndedLifeDoesNotCarryIntoTheNextLife()
+    {
+        var scenario = OwnedIdleBackgroundSession(out var key, out _);
+        scenario.Poll([Stopped(scenario, key)], []);
+        scenario.Poll([], []);
+        Assert.Equal(WorkState.Ended, scenario.View(key).State);
+        var resumed = Process(102, startedMinutesBefore: 0);
+        Assert.True(ControlReference.TrySourceStable(key, ShortA, out var reference));
+
+        scenario.Poll([ListedWork.Entry(key, Entrypoint.Background, ListedStatus.Idle, incarnation: resumed, reference: reference)], [resumed]);
+
+        Assert.Equal(OwnershipEvidence.None, scenario.View(key).Ownership);
+        Assert.Equal(RefusalReason.NoOwnershipEvidence, Refusal(scenario, key, resumed));
+    }
+
     internal static LedgerScenario OwnedIdleBackgroundSession(out WorkKey key, out ProcessIncarnation live)
     {
         var scenario = new LedgerScenario(Claude);
@@ -256,14 +302,14 @@ public sealed class ControlReceiptTests
         new ControlReceipt(NewId(), ControlAction.StopBackgroundSession, Session(SessionA), null, CallerScope.Operator, Start),
         (receipt, next) => receipt.Advance(next, Start, next == ReceiptStage.Refused ? RefusalReason.NoConditionalDispatch : null));
 
-    private static CapabilityReport CodexOwnedReport(SourceGeneration generation) => new(
+    private static CapabilityReport CodexOwnedReport(SourceGeneration generation, Entrypoint entrypoint = Entrypoint.Headless) => new(
         CodexOwned,
         generation,
         "0.167.0-alpha.4.1",
         SourceState.Connected,
         [
             new EntrypointCoverage(
-                Entrypoint.Headless,
+                entrypoint,
                 CoverageLevel.Partial,
                 [Channel.Poll],
                 [WorkKind.Command],
