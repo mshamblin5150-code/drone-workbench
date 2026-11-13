@@ -91,3 +91,12 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 ```
+
+## Test-only benchmark dependencies
+
+`tests/Workbench.Core.Tests` references BenchmarkDotNet 0.15.8 (MIT). It is not
+shipped in any published Workbench component. Its transitive package
+Microsoft.Diagnostics.Tracing.TraceEvent copies `msdia140.dll` (the Microsoft
+Debug Interface Access SDK) into the test output. That binary is covered by
+Microsoft's own license terms, not MIT. The other transitive packages are MIT
+licensed.
