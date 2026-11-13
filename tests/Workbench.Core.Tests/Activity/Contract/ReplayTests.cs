@@ -142,7 +142,7 @@ public sealed class ReplayTests(ITestOutputHelper output)
         var command = WorkKey.Command(CodexOwned, scenario.Generation, "proc-7");
         Assert.True(ControlReference.TryConnectionScoped(command, "proc-7", out var reference));
         scenario.Poll(
-            [ListedWork.Entry(command, Entrypoint.Headless, ListedStatus.Busy, incarnation: server, ownership: OwnershipEvidence.WorkbenchOwnedServer, reference: reference)],
+            [ListedWork.Entry(command, Entrypoint.WorkbenchHosted, ListedStatus.Busy, incarnation: server, ownership: OwnershipEvidence.WorkbenchOwnedServer, reference: reference)],
             [server]);
         this.Write("connected", scenario, command);
 
@@ -151,7 +151,7 @@ public sealed class ReplayTests(ITestOutputHelper output)
         var renewed = WorkKey.Command(CodexOwned, scenario.Generation, "proc-7");
         Assert.True(ControlReference.TryConnectionScoped(renewed, "proc-7", out var renewedReference));
         ListedWork Renewed(ControlReference? handle) =>
-            ListedWork.Entry(renewed, Entrypoint.Headless, ListedStatus.Busy, incarnation: server, ownership: OwnershipEvidence.WorkbenchOwnedServer, reference: handle);
+            ListedWork.Entry(renewed, Entrypoint.WorkbenchHosted, ListedStatus.Busy, incarnation: server, ownership: OwnershipEvidence.WorkbenchOwnedServer, reference: handle);
 
         scenario.Poll([Renewed(null)], [server]);
         var oldCommand = Terminate(scenario, command, server);

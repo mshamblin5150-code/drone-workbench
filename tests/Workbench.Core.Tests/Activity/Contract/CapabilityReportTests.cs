@@ -30,7 +30,7 @@ public sealed class CapabilityReportTests
         var server = Process(301);
 
         ledger.Apply(SafeSourceBatch.Polled(
-            CodexOwned, ledger.StartGeneration(CodexOwned), Start, [ListedWork.Entry(thread, Entrypoint.Headless, ListedStatus.Idle, incarnation: server)], [server], true));
+            CodexOwned, ledger.StartGeneration(CodexOwned), Start, [ListedWork.Entry(thread, Entrypoint.WorkbenchHosted, ListedStatus.Idle, incarnation: server)], [server], true));
         ledger.Apply(SafeSourceBatch.Polled(CodexDesktop, ledger.StartGeneration(CodexDesktop), Start, [], [server], true));
 
         Assert.Equal(thread, Assert.Single(ledger.Work(CodexOwned)).Key);

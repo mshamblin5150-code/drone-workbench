@@ -262,7 +262,7 @@ public sealed class ActivityLedger
         OwnershipEvidence.SameUserBackgroundListing =>
             target.Key.Source.Kind == SourceKind.Claude && target.Key.Kind == WorkKind.Session && target.Entrypoint == Entrypoint.Background,
         OwnershipEvidence.WorkbenchOwnedServer =>
-            target.Key.Source.Kind == SourceKind.Codex && target.Key.Kind == WorkKind.Command && target.Entrypoint == Entrypoint.Headless,
+            target.Key.Source.Kind == SourceKind.Codex && target.Key.Kind == WorkKind.Command && target.Entrypoint == Entrypoint.WorkbenchHosted,
         _ => false,
     };
 

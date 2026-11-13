@@ -8,6 +8,7 @@ public enum Entrypoint
     InteractiveCli,
     Background,
     Headless,
+    WorkbenchHosted,
     Ide,
     Cloud,
     Unknown,

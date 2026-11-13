@@ -123,7 +123,7 @@ public sealed class ControlReceiptTests
         var command = WorkKey.Command(CodexOwned, scenario.Generation, "proc-7");
         Assert.True(ControlReference.TryConnectionScoped(command, "proc-7", out var reference));
         scenario.Poll(
-            [ListedWork.Entry(command, Entrypoint.Headless, ListedStatus.Busy, incarnation: server, ownership: OwnershipEvidence.WorkbenchOwnedServer, reference: reference)],
+            [ListedWork.Entry(command, Entrypoint.WorkbenchHosted, ListedStatus.Busy, incarnation: server, ownership: OwnershipEvidence.WorkbenchOwnedServer, reference: reference)],
             [server]);
         scenario.Ledger.Admit(CodexOwnedReport(scenario.Generation));
         var beforeReconnect = scenario.Ledger.Request(NewId(), ControlAction.TerminateOwnedCommand, command, server, CallerScope.Operator);
@@ -240,9 +240,10 @@ public sealed class ControlReceiptTests
         claude.Ledger.Admit(CapabilityReportTests.ClaudeReport(claude.Generation, "2.1.312"));
 
         Assert.Equal(RefusalReason.NoOwnershipEvidence, Refusal(claude, session, live));
-        Assert.Equal(RefusalReason.NoOwnershipEvidence, TerminateRefusal(Entrypoint.Headless, OwnershipEvidence.SameUserBackgroundListing));
+        Assert.Equal(RefusalReason.NoOwnershipEvidence, TerminateRefusal(Entrypoint.WorkbenchHosted, OwnershipEvidence.SameUserBackgroundListing));
         Assert.Equal(RefusalReason.NoOwnershipEvidence, TerminateRefusal(Entrypoint.Desktop, OwnershipEvidence.WorkbenchOwnedServer));
-        Assert.Equal(RefusalReason.NoConformance, TerminateRefusal(Entrypoint.Headless, OwnershipEvidence.WorkbenchOwnedServer));
+        Assert.Equal(RefusalReason.NoOwnershipEvidence, TerminateRefusal(Entrypoint.Headless, OwnershipEvidence.WorkbenchOwnedServer));
+        Assert.Equal(RefusalReason.NoConformance, TerminateRefusal(Entrypoint.WorkbenchHosted, OwnershipEvidence.WorkbenchOwnedServer));
 
         static RefusalReason? TerminateRefusal(Entrypoint entrypoint, OwnershipEvidence ownership)
         {
@@ -314,7 +315,7 @@ public sealed class ControlReceiptTests
     internal static ListedWork Stopped(LedgerScenario scenario, WorkKey key) =>
         ListedWork.Entry(key, Entrypoint.Background, lifecycle: SourceLifecycle.Stopped, reference: scenario.View(key).Reference);
 
-    internal static CapabilityReport CodexOwnedReport(SourceGeneration generation, Entrypoint entrypoint = Entrypoint.Headless) => new(
+    internal static CapabilityReport CodexOwnedReport(SourceGeneration generation, Entrypoint entrypoint = Entrypoint.WorkbenchHosted) => new(
         CodexOwned,
         generation,
         "0.167.0-alpha.4.1",
