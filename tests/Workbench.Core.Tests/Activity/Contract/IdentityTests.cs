@@ -55,6 +55,24 @@ public sealed class IdentityTests
     }
 
     [Fact]
+    public void ACommandKeyCarriesItsConnectionSoItsReferenceDiesWithThatConnection()
+    {
+        var ledger = new ActivityLedger(Settings, Clock());
+        var first = ledger.StartGeneration(CodexOwned);
+        var second = ledger.StartGeneration(CodexOwned);
+        var command = WorkKey.Command(CodexOwned, first, "proc-7");
+
+        Assert.True(ControlReference.TryConnectionScoped(command, "proc-7", out var reference));
+
+        Assert.NotEqual(command, WorkKey.Command(CodexOwned, second, "proc-7"));
+        Assert.Equal(ReferenceScope.ConnectionScoped, reference.Scope);
+        Assert.True(reference.IsUsableAt(first));
+        Assert.False(reference.IsUsableAt(second));
+        Assert.Throws<ArgumentException>(() => WorkKey.Of(CodexOwned, WorkKind.Command, "proc-7"));
+        Assert.True(second > first);
+    }
+
+    [Fact]
     public void PathShapedOrSeparatorTokensAreRejectedWithoutEchoingTheValue()
     {
         string[] rejected = [ClaudeRoot, "a/b", "has space", "x:y", "Upper", string.Empty];

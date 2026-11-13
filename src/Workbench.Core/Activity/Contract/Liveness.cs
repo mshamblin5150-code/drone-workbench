@@ -167,6 +167,13 @@ internal static class Liveness
 
     private static readonly Cell[,] Cells = Index(Rows);
 
+    internal enum ProcessFate
+    {
+        Alive,
+        Exited,
+        Unknown,
+    }
+
     private enum Effect
     {
         Unassigned,
@@ -197,6 +204,107 @@ internal static class Liveness
             _ => throw new InvalidOperationException($"No liveness rule allows {signal} from {from?.ToString() ?? "new work"}."),
         };
     }
+
+    // A partial inventory makes a missing process unknown, never exited.
+    internal static ProcessFate FateOf(ProcessIncarnation? last, IReadOnlySet<ProcessIncarnation> live, bool inventoryComplete)
+    {
+        if (last is not { } incarnation)
+        {
+            return ProcessFate.Unknown;
+        }
+
+        if (live.Contains(incarnation))
+        {
+            return ProcessFate.Alive;
+        }
+
+        return inventoryComplete ? ProcessFate.Exited : ProcessFate.Unknown;
+    }
+
+    // The order of these checks is the precedence between rules for one listed entry.
+    internal static Signal ClassifyListed(in Prior prior, ListedWork entry, ProcessFate lastFate, DateTimeOffset observedAt, LivenessSettings settings)
+    {
+        if (entry is not ListedWork.RecognizedEntry listed)
+        {
+            return Signal.ListedUnrecognized;
+        }
+
+        if (listed.Lifecycle == SourceLifecycle.Stopped)
+        {
+            return listed.Incarnation is null && listed.Status == ListedStatus.None ? Signal.ListedStopped : Signal.ListedContradictory;
+        }
+
+        if (listed.Status == ListedStatus.NotLoaded)
+        {
+            return Signal.ListedNotLoaded;
+        }
+
+        if (listed.Incarnation is not null)
+        {
+            return listed.Status switch
+            {
+                ListedStatus.Busy => Signal.ListedBusy,
+                ListedStatus.Waiting => Signal.ListedWaiting,
+                ListedStatus.Idle => Signal.ListedIdle,
+                _ => Signal.ListedContradictory,
+            };
+        }
+
+        if (prior.SessionEndSeen && lastFate == ProcessFate.Exited)
+        {
+            return Signal.SessionEndThenExit;
+        }
+
+        if (prior.EverLive)
+        {
+            return RestartOrOverdue(prior, listed.Status == ListedStatus.None ? Signal.ListedProcessGap : Signal.ListedIncarnationExited, observedAt, settings);
+        }
+
+        if (listed.Status != ListedStatus.None)
+        {
+            return Signal.ListedStatusWithoutProcess;
+        }
+
+        return observedAt - prior.FirstSeenAt <= settings.StartingWindow ? Signal.ListedPending : Signal.ListedPendingOverdue;
+    }
+
+    internal static Signal ClassifyUnlisted(in Prior prior, ProcessFate lastFate)
+    {
+        if (prior.SessionEndSeen && lastFate == ProcessFate.Exited)
+        {
+            return Signal.SessionEndThenExit;
+        }
+
+        if (prior.State == WorkState.Stopped)
+        {
+            return lastFate switch
+            {
+                ProcessFate.Alive => Signal.UnlistedAlive,
+                ProcessFate.Unknown when prior.LastIncarnation is not null => Signal.UnlistedLivenessUnknown,
+                _ => Signal.UnlistedAfterStop,
+            };
+        }
+
+        return lastFate switch
+        {
+            ProcessFate.Alive => Signal.UnlistedAlive,
+            ProcessFate.Exited => Signal.UnlistedExited,
+            _ => prior.LastIncarnation is null ? Signal.UnlistedNoProcess : Signal.UnlistedLivenessUnknown,
+        };
+    }
+
+    // Unknown notification types are recorded and change nothing.
+    internal static Signal? ClassifyHook(WaitingFor waitingFor) =>
+        waitingFor is WaitingFor.PermissionPrompt or WaitingFor.IdlePrompt or WaitingFor.AgentNeedsInput or WaitingFor.ElicitationDialog
+            ? Signal.HookWaiting
+            : null;
+
+    // A restart that outlives RestartWindow reads Unknown, and stays there instead of cycling back to Restarting.
+    private static Signal RestartOrOverdue(in Prior prior, Signal gap, DateTimeOffset observedAt, LivenessSettings settings) =>
+        (prior.State == WorkState.Restarting && observedAt - prior.StateSince > settings.RestartWindow) ||
+        (prior.State == WorkState.Unknown && prior.Reason == ReasonCode.RestartOverdue)
+            ? Signal.ListedRestartOverdue
+            : gap;
 
     private static Cell CellOf(WorkState? from, Signal signal) => Cells[from is { } state ? (int)state + 1 : 0, (int)signal];
 
@@ -232,6 +340,16 @@ internal static class Liveness
     {
         public override string ToString() => $"{this.From?.ToString() ?? "(new)"} --{this.Signal}--> {this.To} / {this.Reason}";
     }
+
+    // What the classifiers need to know about an item before this batch. State is null for new work.
+    internal readonly record struct Prior(
+        WorkState? State,
+        ReasonCode Reason,
+        DateTimeOffset StateSince,
+        DateTimeOffset FirstSeenAt,
+        bool EverLive,
+        bool SessionEndSeen,
+        ProcessIncarnation? LastIncarnation);
 
     private readonly record struct Cell(Effect Effect, WorkState To, ReasonCode Reason);
 
