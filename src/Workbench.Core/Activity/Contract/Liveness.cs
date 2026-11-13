@@ -184,7 +184,6 @@ internal static class Liveness
 
     internal static IEnumerable<WorkState?> Domain => Any;
 
-    // One line per allowed transition, in table order.
     internal static ImmutableArray<Transition> Transitions { get; } =
     [
         .. Rows.Where(row => row.Effect == Effect.Move)

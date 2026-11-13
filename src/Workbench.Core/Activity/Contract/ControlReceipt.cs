@@ -41,7 +41,6 @@ public enum RefusalReason
     RequestIdConflict,
 }
 
-// A client-chosen request identity. The same id returns the same receipt.
 public readonly record struct RequestId
 {
     public RequestId(Guid value)

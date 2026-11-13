@@ -82,7 +82,6 @@ public sealed class VerifiedControl
     }
 }
 
-// What a dispatched source command reported. Adapters build it from a classified control result.
 public sealed class ControlDispatch
 {
     private ControlDispatch(ReceiptStage stage, SourceRejection? rejection, DateTimeOffset observedAt)
@@ -110,7 +109,6 @@ public sealed class ControlDispatch
     public static ControlDispatch DeliveryUnknown(DateTimeOffset observedAt) => new(ReceiptStage.DeliveryUnknown, null, observedAt);
 }
 
-// The source's own view after dispatch, with process-exit evidence beside it.
 public sealed class ControlEvidence
 {
     private ControlEvidence(ReceiptStage stage, IEnumerable<ProcessExit> exits, DateTimeOffset observedAt)
