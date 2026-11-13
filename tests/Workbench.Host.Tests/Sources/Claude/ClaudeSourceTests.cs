@@ -92,14 +92,24 @@ public sealed class ClaudeSourceTests
         Assert.Equal(0, processes.Reads);
     }
 
-    [Fact]
-    public async Task CurrentReadOnlyConformanceVersionIsAnExactCompatibilityEntry()
+    [Theory]
+    [InlineData("2.1.322")]
+    [InlineData("2.1.323")]
+    public async Task CheckedReadOnlyVersionsAreExactCompatibilityEntries(string version)
     {
-        var current = await Source(new Reader("[]", version: "2.1.322 (Claude Code)"), Inventory())
+        var current = await Source(new Reader("[]", version: version + " (Claude Code)"), Inventory())
             .CaptureAsync(TestContext.Current.CancellationToken);
         Assert.Equal(ClaudeObservation.CaptureState.Observed, current.State);
-        Assert.Equal("2.1.322", current.SourceVersion);
-        var next = await Source(new Reader("[]", version: "2.1.323 (Claude Code)"), Inventory())
+        Assert.Equal(version, current.SourceVersion);
+    }
+
+    [Theory]
+    [InlineData("2.1.321")]
+    [InlineData("2.1.324")]
+    [InlineData("2.2.0")]
+    public async Task UncheckedNeighbourVersionsAreRefused(string version)
+    {
+        var next = await Source(new Reader("[]", version: version + " (Claude Code)"), Inventory())
             .CaptureAsync(TestContext.Current.CancellationToken);
         Assert.Equal(ClaudeObservation.CaptureState.UnsupportedVersion, next.State);
         Assert.Null(next.Sessions);
