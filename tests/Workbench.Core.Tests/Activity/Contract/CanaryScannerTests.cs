@@ -7,7 +7,8 @@ using Xunit;
 public sealed class CanaryScannerTests : IDisposable
 {
     private const string Canary = "CANARY-7Q4M2X9B";
-    private const string SyntheticProfile = @"C:\Users\fixture-person";
+    private const string SyntheticUser = "fixture-person";
+    private const string SyntheticProfile = @"C:\Users\" + SyntheticUser;
     private const string SyntheticPid = "4321";
 
     private readonly string directory = Path.Combine(Path.GetTempPath(), "workbench-canary-" + Guid.NewGuid().ToString("N"));
@@ -84,6 +85,77 @@ public sealed class CanaryScannerTests : IDisposable
         Assert.Contains("leak.txt", rendered, StringComparison.Ordinal);
         Assert.True(new CanaryScanner([Canary, this.directory], () => [SyntheticProfile, SyntheticPid])
             .Scan([CanaryInput.Captured("report", rendered)]).Clean);
+    }
+
+    [Fact]
+    public void TheMachineValueReaderReturnsValuesTheScannerFindsWhenOneIsPlanted()
+    {
+        var values = CanaryScanner.ReadMachineValues().ToArray();
+        Assert.True(values.Length > 0, "The reader returned no machine values.");
+        Assert.True(values.All(value => !string.IsNullOrEmpty(value)), "The reader returned an empty machine value.");
+        var planted = values.First(value => value.Length >= CanaryScanner.MinimumValueLength);
+
+        var report = new CanaryScanner([], CanaryScanner.ReadMachineValues).Scan(
+        [
+            CanaryInput.Captured("planted", $"cwd={planted}"),
+            CanaryInput.Captured("synthetic", "cwd=synthetic-project"),
+        ]);
+
+        Assert.True(report.RealValueMatches > 0, "A planted machine value was not found.");
+        Assert.Equal(new[] { "planted" }, report.MatchedInputs);
+    }
+
+    [Fact]
+    public void AMatchedInputWhoseNameHoldsARealValueIsReportedByARedactedName()
+    {
+        var file = this.Plant($"{SyntheticUser}-notes.txt", $"home={SyntheticProfile}");
+        var scanner = new CanaryScanner([], () => [SyntheticProfile, SyntheticUser]);
+
+        var report = scanner.Scan([CanaryInput.File(file)]);
+
+        Assert.Equal(new[] { "[redacted]-notes.txt" }, report.MatchedInputs);
+        Assert.True(scanner.Scan([CanaryInput.Captured("report", report + JsonSerializer.Serialize(report))]).Clean);
+    }
+
+    [Fact]
+    public void AnUnreadableFileIsACountedErrorAndNeverAMessageWithItsPath()
+    {
+        var missing = CanaryInput.File(Path.Combine(this.directory, "missing.txt"));
+
+        var report = new CanaryScanner([Canary], () => []).Scan([missing, CanaryInput.Captured("log", Canary)]);
+
+        Assert.Equal((1, 1), (report.ReadErrors, report.FixtureMatches));
+        Assert.False(new CanaryScanner([], () => []).Scan([missing]).Clean);
+        Assert.True(new CanaryScanner([this.directory], () => []).Scan([CanaryInput.Captured("report", report + JsonSerializer.Serialize(report))]).Clean);
+    }
+
+    [Fact]
+    public void ValuesTooShortToScanAreCountedNotDroppedSilently()
+    {
+        var scanner = new CanaryScanner(["ab"], () => [string.Empty, "xy", SyntheticProfile]);
+
+        var report = scanner.Scan([CanaryInput.Captured("log", $"ab xy {SyntheticProfile}")]);
+
+        Assert.Equal(3, report.SkippedShortValues);
+        Assert.Equal((0, 1), (report.FixtureMatches, report.RealValueMatches));
+    }
+
+    [Fact]
+    public void AStagedDiffScansAddedLinesThatStartWithPlusSignsAndNewPaths()
+    {
+        var diff = string.Join(
+            '\n',
+            "diff --git a/src/x.cs b/src/x.cs",
+            "--- a/src/x.cs",
+            $"+++ b/src/{Canary}.cs",
+            "@@ -1,2 +1,2 @@",
+            $"-var old = \"{Canary}\";",
+            $"+++counter; // {Canary}",
+            " unchanged();");
+
+        var report = new CanaryScanner([Canary], () => []).Scan([CanaryInput.StagedDiff(diff)]);
+
+        Assert.Equal(2, report.FixtureMatches);
     }
 
     [Fact]

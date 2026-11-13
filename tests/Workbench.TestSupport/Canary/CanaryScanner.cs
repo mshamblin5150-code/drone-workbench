@@ -16,32 +16,45 @@ public sealed class CanaryScanner(IReadOnlyCollection<string> fixtureCanaries, F
 
     public CanaryReport Scan(IEnumerable<CanaryInput> inputs)
     {
-        var fixtures = Variants(fixtureCanaries);
-        var real = Variants(readRealValues());
+        string[] fixtureValues = [.. fixtureCanaries];
+        string[] realValues = [.. readRealValues()];
+        var fixtures = Variants(fixtureValues);
+        var real = Variants(realValues);
         var fixtureMatches = 0;
         var realMatches = 0;
+        var readErrors = 0;
         var matchedInputs = new List<string>();
         foreach (var input in inputs)
         {
-            var text = input.Read();
+            if (input.Read() is not { } text)
+            {
+                readErrors++;
+                continue;
+            }
+
             var inputFixtureMatches = fixtures.Sum(value => Count(text, value));
             var inputRealMatches = real.Sum(value => Count(text, value));
             if (inputFixtureMatches + inputRealMatches > 0)
             {
-                matchedInputs.Add(input.Name);
+                matchedInputs.Add(Redact(input.Name, [.. fixtures, .. real]));
             }
 
             fixtureMatches += inputFixtureMatches;
             realMatches += inputRealMatches;
         }
 
-        return new CanaryReport(fixtureMatches, realMatches, matchedInputs);
+        var skippedShortValues = fixtureValues.Concat(realValues).Count(value => value is not { Length: >= MinimumValueLength });
+        return new CanaryReport(fixtureMatches, realMatches, matchedInputs, readErrors, skippedShortValues);
     }
+
+    private static string Redact(string name, string[] values) => values
+        .OrderByDescending(value => value.Length)
+        .Aggregate(name, (redacted, value) => redacted.Replace(value, "[redacted]", StringComparison.OrdinalIgnoreCase));
 
     private static string[] Variants(IEnumerable<string> values) =>
     [
         .. values
-            .Where(value => value.Length >= MinimumValueLength)
+            .Where(value => value is { Length: >= MinimumValueLength })
             .SelectMany(value => value.Contains('\\', StringComparison.Ordinal)
                 ? new[] { value, value.Replace('\\', '/'), value.Replace("\\", "\\\\", StringComparison.Ordinal) }
                 : [value])
