@@ -1,5 +1,6 @@
 namespace Workbench.Core.Tests.Activity.Contract;
 
+using System.Runtime.CompilerServices;
 using Workbench.Core.Activity.Contract;
 using Xunit;
 using static Workbench.Core.Tests.Activity.Contract.ContractFixture;
@@ -87,37 +88,50 @@ public sealed class ReplayTests(ITestOutputHelper output)
     {
         var scenario = new LedgerScenario(Claude);
         var original = Session(SessionA);
-        var unrelated = Session(SessionB);
+        var bystander = Session(SessionB);
         var exited = new ProcessIncarnation(4321, Start.AddMinutes(-10));
         var reused = new ProcessIncarnation(4321, Start.AddSeconds(5));
-        scenario.Poll([ListedWork.Entry(original, Entrypoint.InteractiveCli, ListedStatus.Idle, incarnation: exited)], [exited]);
-        scenario.Poll([], []);
-        this.Write("exited", scenario, original);
+        var bystanderProcess = Process(102);
+        var bystanderEntry = ListedWork.Entry(bystander, Entrypoint.InteractiveCli, ListedStatus.Busy, incarnation: bystanderProcess);
+        scenario.Poll([ListedWork.Entry(original, Entrypoint.InteractiveCli, ListedStatus.Idle, incarnation: exited), bystanderEntry], [exited, bystanderProcess]);
+        this.Write("listed", scenario, original);
 
-        scenario.Poll([ListedWork.Entry(unrelated, Entrypoint.InteractiveCli, ListedStatus.Busy, incarnation: reused)], [reused]);
+        scenario.Poll([bystanderEntry], [reused, bystanderProcess]);
 
-        var old = this.Write("after reuse", scenario, original);
-        this.Write("reusing process", scenario, unrelated);
+        var old = this.Write("dropped while its pid runs a new process", scenario, original);
+        this.Write("bystander", scenario, bystander);
         Assert.Equal((WorkState.Ended, ReasonCode.ProcessExited), (old.State, old.Reason));
         Assert.Equal(new[] { exited }, old.Incarnations.Select(association => association.Incarnation));
-        Assert.Equal(new[] { reused }, scenario.View(unrelated).Incarnations.Select(association => association.Incarnation));
-        output.WriteLine("PASS old key stays Ended and gains no association");
+        Assert.Equal(new[] { bystanderProcess }, scenario.View(bystander).Incarnations.Select(association => association.Incarnation));
+        Assert.DoesNotContain(scenario.Ledger.Work(Claude), view => view.Incarnations.Any(association => association.Incarnation == reused));
+        output.WriteLine("PASS old key Ended/ProcessExited in the reuse poll; no work gained the reused incarnation");
     }
 
     [Fact]
-    public void Lane6_DuplicateRequest()
+    public async Task Lane6_DuplicateRequest()
     {
-        var scenario = ControlReceiptTests.OwnedIdleBackgroundSession(out var key, out var live);
-        var id = new RequestId(Guid.Parse("00000000-0000-4000-8000-0000000000a6"));
+        var clock = Clock();
+        var ledger = new ActivityLedger(Settings, clock);
+        var adapter = new CountingAdapter(ledger.StartGeneration(Claude), clock);
+        var cancellation = TestContext.Current.CancellationToken;
+        ledger.Admit(await adapter.DescribeAsync(cancellation));
+        await foreach (var batch in adapter.ObserveAsync(cancellation))
+        {
+            Assert.Equal(ApplyOutcome.Applied, ledger.Apply(batch));
+        }
 
-        var first = scenario.Ledger.Request(id, ControlAction.StopBackgroundSession, key, live, CallerScope.Operator);
-        var second = scenario.Ledger.Request(id, ControlAction.StopBackgroundSession, key, live, CallerScope.Operator);
+        var id = new RequestId(Guid.Parse("00000000-0000-4000-8000-0000000000a6"));
+        var first = await RequestThroughActivity(ledger, adapter, id, CountingAdapter.Key, CountingAdapter.Live, cancellation);
+        var second = await RequestThroughActivity(ledger, adapter, id, CountingAdapter.Key, CountingAdapter.Live, cancellation);
 
         this.Write("first", first);
         this.Write("second", second);
         Assert.Same(first, second);
         Assert.False(first.WorkbenchDispatched);
-        output.WriteLine("PASS one receipt, zero dispatch (CA1 default: every control is disabled)");
+        Assert.Equal(0, adapter.Dispatches);
+        output.WriteLine(
+            $"PASS one receipt, {adapter.Dispatches} adapter dispatches. The plan's lane 6 text says one dispatch, which conflicts with CT-4 " +
+            "(the first receipt, nothing dispatched). CA1 follows CT-4.");
     }
 
     [Fact]
@@ -133,14 +147,29 @@ public sealed class ReplayTests(ITestOutputHelper output)
         this.Write("connected", scenario, command);
 
         scenario.Generation = scenario.Ledger.StartGeneration(CodexOwned);
-        scenario.Poll([], [server]);
-        var receipt = scenario.Ledger.Request(ControlReceiptTests.NewId(), ControlAction.TerminateOwnedCommand, command, server, CallerScope.Operator);
+        scenario.Ledger.Admit(ControlReceiptTests.CodexOwnedReport(scenario.Generation));
+        var renewed = WorkKey.Command(CodexOwned, scenario.Generation, "proc-7");
+        Assert.True(ControlReference.TryConnectionScoped(renewed, "proc-7", out var renewedReference));
+        ListedWork Renewed(ControlReference? handle) =>
+            ListedWork.Entry(renewed, Entrypoint.Headless, ListedStatus.Busy, incarnation: server, ownership: OwnershipEvidence.WorkbenchOwnedServer, reference: handle);
 
-        this.Write("reconnected", scenario, command);
-        this.Write("terminate", receipt);
+        scenario.Poll([Renewed(null)], [server]);
+        var oldCommand = Terminate(scenario, command, server);
+        var withoutReference = Terminate(scenario, renewed, server);
+        this.Write("old key after reconnect", scenario, command);
+        this.Write("renewed key without reference", scenario, renewed);
+        scenario.Poll([Renewed(renewedReference)], [server]);
+        var withReference = Terminate(scenario, renewed, server);
+
+        this.Write("terminate old key", oldCommand);
+        this.Write("terminate renewed key, no reference", withoutReference);
+        this.Write("terminate renewed key, current reference", withReference);
         Assert.False(reference.IsUsableAt(scenario.Generation));
-        Assert.Equal((ReceiptStage.Refused, RefusalReason.StaleTarget), (receipt.Stage, receipt.Refusal));
-        output.WriteLine("PASS connection-scoped reference rejected as stale");
+        Assert.Equal((ReceiptStage.Refused, RefusalReason.StaleTarget), (oldCommand.Stage, oldCommand.Refusal));
+        Assert.Equal((WorkState.Busy, ReasonCode.SourceReported), scenario.StateOf(renewed));
+        Assert.Equal((ReceiptStage.Refused, RefusalReason.StaleTarget), (withoutReference.Stage, withoutReference.Refusal));
+        Assert.Equal((ReceiptStage.Refused, RefusalReason.NoConformance), (withReference.Stage, withReference.Refusal));
+        output.WriteLine("PASS old reference rejected as stale; fresh live work without a usable reference refused by the reference rule alone");
     }
 
     [Fact]
@@ -150,17 +179,35 @@ public sealed class ReplayTests(ITestOutputHelper output)
         scenario.Poll([ControlReceiptTests.Stopped(scenario, key)], []);
         var claudeRepeatStop = ControlDispatch.Acknowledged(scenario.Now);
         var codexRepeatTerminate = ControlDispatch.Rejected(SourceRejection.NoActiveCommand, scenario.Now);
+        var id = ControlReceiptTests.NewId();
 
-        var receipt = scenario.Ledger.Request(ControlReceiptTests.NewId(), ControlAction.StopBackgroundSession, key, null, CallerScope.Operator);
+        ControlReceipt[] produced =
+        [
+            scenario.Ledger.Request(id, ControlAction.StopBackgroundSession, key, null, CallerScope.Operator),
+            scenario.Ledger.Request(id, ControlAction.StopBackgroundSession, key, null, CallerScope.Operator),
+            scenario.Ledger.Request(ControlReceiptTests.NewId(), ControlAction.StopBackgroundSession, key, null, CallerScope.Operator),
+        ];
 
-        this.Write("workbench stop on stopped work", receipt);
+        foreach (var receipt in produced)
+        {
+            this.Write("workbench stop on stopped work", receipt);
+        }
+
         output.WriteLine($"provider claude repeat stop: {claudeRepeatStop.Stage}");
         output.WriteLine($"provider codex repeat terminate: {codexRepeatTerminate.Stage}/{codexRepeatTerminate.Rejection}");
-        Assert.Equal(ReceiptStage.NoActionNeeded, receipt.Stage);
-        Assert.False(receipt.WorkbenchDispatched);
+        Assert.All(produced, receipt => Assert.Equal(ReceiptStage.NoActionNeeded, receipt.Stage));
+        Assert.All(produced, receipt => Assert.False(receipt.WorkbenchDispatched));
+        Assert.DoesNotContain(
+            produced.SelectMany(receipt => receipt.History),
+            step => step.Stage is ReceiptStage.Dispatched or ReceiptStage.SourceAcknowledged or ReceiptStage.SourceRejected);
+        var surface = ControlReceiptTests.LedgerSurfaceTypes();
+        Assert.DoesNotContain(typeof(ControlDispatch), surface);
+        Assert.DoesNotContain(typeof(ControlEvidence), surface);
         Assert.Equal(ReceiptStage.SourceAcknowledged, claudeRepeatStop.Stage);
         Assert.Equal((ReceiptStage.SourceRejected, SourceRejection.NoActiveCommand), (codexRepeatTerminate.Stage, codexRepeatTerminate.Rejection));
-        output.WriteLine("PASS already stopped with zero dispatch; provider facts keep their classification");
+        output.WriteLine(
+            $"PASS {produced.Length} ledger receipts, all NoActionNeeded with no Dispatched, SourceAcknowledged or SourceRejected stage; " +
+            "no public ledger member accepts a provider fact");
     }
 
     [Fact]
@@ -198,6 +245,23 @@ public sealed class ReplayTests(ITestOutputHelper output)
         output.WriteLine("PASS desktop Unreachable with NoSupportedEndpoint");
     }
 
+    private static ControlReceipt Terminate(LedgerScenario scenario, WorkKey command, ProcessIncarnation seen) =>
+        scenario.Ledger.Request(ControlReceiptTests.NewId(), ControlAction.TerminateOwnedCommand, command, seen, CallerScope.Operator);
+
+    private static async Task<ControlReceipt> RequestThroughActivity(
+        ActivityLedger ledger, ISourceAdapter adapter, RequestId id, WorkKey key, ProcessIncarnation seen, CancellationToken cancellationToken)
+    {
+        var receipt = ledger.Request(id, ControlAction.StopBackgroundSession, key, seen, CallerScope.Operator);
+        if (receipt.Stage == ReceiptStage.Accepted)
+        {
+            var target = ledger.Find(key)!;
+            var control = new VerifiedControl(id, receipt.Action, target.Reference!, ledger.Source(key.Source)!.Generation, seen, target.State);
+            await adapter.DispatchAsync(control, cancellationToken);
+        }
+
+        return receipt;
+    }
+
     private WorkView Write(string label, LedgerScenario scenario, WorkKey key)
     {
         var view = scenario.View(key);
@@ -207,4 +271,36 @@ public sealed class ReplayTests(ITestOutputHelper output)
 
     private void Write(string label, ControlReceipt receipt) =>
         output.WriteLine($"{label}: {string.Join(" -> ", receipt.History.Select(step => step.Stage))} refusal={receipt.Refusal?.ToString() ?? "none"} dispatched={receipt.WorkbenchDispatched}");
+
+    private sealed class CountingAdapter(SourceGeneration generation, TimeProvider clock) : ISourceAdapter
+    {
+        public static readonly WorkKey Key = Session(SessionA);
+        public static readonly ProcessIncarnation Live = Process(101);
+
+        public int Dispatches { get; private set; }
+
+        public SourceKind Kind => SourceKind.Claude;
+
+        public Task<CapabilityReport> DescribeAsync(CancellationToken cancellationToken) =>
+            Task.FromResult(CapabilityReportTests.ClaudeReport(generation, "2.1.312"));
+
+        public async IAsyncEnumerable<SafeSourceBatch> ObserveAsync([EnumeratorCancellation] CancellationToken cancellationToken)
+        {
+            Assert.True(ControlReference.TrySourceStable(Key, ShortA, out var reference));
+            await Task.Yield();
+            yield return SafeSourceBatch.Polled(
+                Claude,
+                generation,
+                clock.GetUtcNow(),
+                [ListedWork.Entry(Key, Entrypoint.Background, ListedStatus.Idle, incarnation: Live, ownership: OwnershipEvidence.SameUserBackgroundListing, reference: reference)],
+                [Live],
+                processInventoryComplete: true);
+        }
+
+        public Task<ControlDispatch> DispatchAsync(VerifiedControl control, CancellationToken cancellationToken)
+        {
+            this.Dispatches++;
+            return Task.FromResult(ControlDispatch.Acknowledged(clock.GetUtcNow()));
+        }
+    }
 }

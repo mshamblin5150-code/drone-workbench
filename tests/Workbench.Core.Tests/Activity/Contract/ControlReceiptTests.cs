@@ -172,9 +172,11 @@ public sealed class ControlReceiptTests
 
         Assert.Equal((ReceiptStage.SourceAcknowledged, (SourceRejection?)null), (claudeRepeatStop.Stage, claudeRepeatStop.Rejection));
         Assert.Equal((ReceiptStage.SourceRejected, SourceRejection.NoActiveCommand), (codexRepeatTerminate.Stage, codexRepeatTerminate.Rejection));
-        var ledgerInputs = typeof(ActivityLedger).GetMethods(BindingFlags.Public | BindingFlags.Instance).SelectMany(m => m.GetParameters()).Select(p => p.ParameterType);
-        Assert.DoesNotContain(typeof(ControlDispatch), ledgerInputs);
-        Assert.DoesNotContain(typeof(ControlEvidence), ledgerInputs);
+        var surface = LedgerSurfaceTypes();
+        Assert.Contains(typeof(WorkView), surface);
+        Assert.Contains(typeof(TimeProvider), surface);
+        Assert.DoesNotContain(typeof(ControlDispatch), surface);
+        Assert.DoesNotContain(typeof(ControlEvidence), surface);
     }
 
     [Fact]
@@ -286,23 +288,33 @@ public sealed class ControlReceiptTests
 
     internal static RequestId NewId() => new(Guid.NewGuid());
 
+    internal static HashSet<Type> LedgerSurfaceTypes()
+    {
+        const BindingFlags everyPublic = BindingFlags.Public | BindingFlags.Instance | BindingFlags.Static;
+        var ledger = typeof(ActivityLedger);
+        var pending = new Stack<Type>(
+            ledger.GetConstructors(everyPublic).SelectMany(constructor => constructor.GetParameters().Select(parameter => parameter.ParameterType))
+                .Concat(ledger.GetMethods(everyPublic).SelectMany(method => method.GetParameters().Select(parameter => parameter.ParameterType).Append(method.ReturnType)))
+                .Concat(ledger.GetFields(everyPublic).Select(field => field.FieldType)));
+        var surface = new HashSet<Type>();
+        while (pending.TryPop(out var type))
+        {
+            if (surface.Add(type))
+            {
+                foreach (var inner in type.HasElementType ? [type.GetElementType()!] : type.GetGenericArguments())
+                {
+                    pending.Push(inner);
+                }
+            }
+        }
+
+        return surface;
+    }
+
     internal static ListedWork Stopped(LedgerScenario scenario, WorkKey key) =>
         ListedWork.Entry(key, Entrypoint.Background, lifecycle: SourceLifecycle.Stopped, reference: scenario.View(key).Reference);
 
-    private static RefusalReason? Refusal(LedgerScenario scenario, WorkKey key, ProcessIncarnation seen, CallerScope caller = CallerScope.Operator) =>
-        scenario.Ledger.Request(NewId(), ControlAction.StopBackgroundSession, key, seen, caller).Refusal;
-
-    private static void AssertRefused(LedgerScenario scenario, WorkKey key, RefusalReason reason)
-    {
-        var receipt = scenario.Ledger.Request(NewId(), ControlAction.StopBackgroundSession, key, null, CallerScope.Operator);
-        Assert.Equal((ReceiptStage.Refused, reason), (receipt.Stage, receipt.Refusal));
-    }
-
-    private static ControlReceipt Reach(ReceiptStage stage) => PathTo[stage].Aggregate(
-        new ControlReceipt(NewId(), ControlAction.StopBackgroundSession, Session(SessionA), null, CallerScope.Operator, Start),
-        (receipt, next) => receipt.Advance(next, Start, next == ReceiptStage.Refused ? RefusalReason.NoConditionalDispatch : null));
-
-    private static CapabilityReport CodexOwnedReport(SourceGeneration generation, Entrypoint entrypoint = Entrypoint.Headless) => new(
+    internal static CapabilityReport CodexOwnedReport(SourceGeneration generation, Entrypoint entrypoint = Entrypoint.Headless) => new(
         CodexOwned,
         generation,
         "0.167.0-alpha.4.1",
@@ -317,4 +329,17 @@ public sealed class ControlReceiptTests
                 EvidenceRef.Research("codex-ticket7")),
         ],
         Start);
+
+    private static RefusalReason? Refusal(LedgerScenario scenario, WorkKey key, ProcessIncarnation seen, CallerScope caller = CallerScope.Operator) =>
+        scenario.Ledger.Request(NewId(), ControlAction.StopBackgroundSession, key, seen, caller).Refusal;
+
+    private static void AssertRefused(LedgerScenario scenario, WorkKey key, RefusalReason reason)
+    {
+        var receipt = scenario.Ledger.Request(NewId(), ControlAction.StopBackgroundSession, key, null, CallerScope.Operator);
+        Assert.Equal((ReceiptStage.Refused, reason), (receipt.Stage, receipt.Refusal));
+    }
+
+    private static ControlReceipt Reach(ReceiptStage stage) => PathTo[stage].Aggregate(
+        new ControlReceipt(NewId(), ControlAction.StopBackgroundSession, Session(SessionA), null, CallerScope.Operator, Start),
+        (receipt, next) => receipt.Advance(next, Start, next == ReceiptStage.Refused ? RefusalReason.NoConditionalDispatch : null));
 }
