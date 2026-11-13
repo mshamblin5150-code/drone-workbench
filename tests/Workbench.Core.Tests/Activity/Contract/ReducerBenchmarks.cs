@@ -1,235 +1,232 @@
 namespace Workbench.Core.Tests.Activity.Contract;
 
-using System.Diagnostics;
+using System.Collections.Concurrent;
+using BenchmarkDotNet.Attributes;
+using BenchmarkDotNet.Configs;
+using BenchmarkDotNet.Reports;
+using BenchmarkDotNet.Running;
 using Workbench.Core.Activity.Contract;
 using Workbench.TestSupport;
 using Xunit;
 using static Workbench.Core.Tests.Activity.Contract.ContractFixture;
 
+// Opt-in, Release only: dotnet test --project tests/Workbench.Core.Tests -c Release --filter-class "*ReducerBenchmarks" --explicit only
+// BenchmarkDotNet runs in process because its out-of-process toolchain does not start on net11.0.
 public sealed class ReducerBenchmarks(ITestOutputHelper output)
 {
-    private const int HotItems = 200;
-    private const int Warmup = 50;
-    private const int AppliesPerRound = 200;
-    private const int WholeSourceReadsPerRound = 50;
-    private const int Rounds = 5;
-    private const int OneInEveryHundredUnresolved = 100;
+    public enum History
+    {
+        EndedOnly,
+        OnePercentUnresolved,
+        OnePercentLost,
+    }
 
     [Fact(Explicit = true)]
     public void ApplyCostFollowsTheBatchAndNotTheHistory()
     {
-        Workload[] workloads =
-        [
-            Workload.Build(10_000, unresolvedEvery: null, settles: true),
-            Workload.Build(100_000, unresolvedEvery: null, settles: true),
-            Workload.Build(10_000, unresolvedEvery: OneInEveryHundredUnresolved, settles: false),
-            Workload.Build(100_000, unresolvedEvery: OneInEveryHundredUnresolved, settles: false),
-            Workload.Build(10_000, unresolvedEvery: OneInEveryHundredUnresolved, settles: true),
-            Workload.Build(100_000, unresolvedEvery: OneInEveryHundredUnresolved, settles: true),
-        ];
-        foreach (var workload in workloads)
+        PollBenchmarks.Faults.Clear();
+        var summary = BenchmarkRunner.Run(
+            [typeof(ReducerApply), typeof(SourceView)],
+            DefaultConfig.Instance.WithOptions(ConfigOptions.JoinSummary)).Single();
+        output.WriteLine($"report {summary.ResultsDirectoryPath}, log {summary.LogFilePath}");
+
+        Assert.Empty(summary.ValidationErrors);
+        Assert.Equal(18, summary.Reports.Length);
+        Assert.All(summary.Reports, report => Assert.True(report.Success, report.BenchmarkCase.DisplayInfo));
+        Assert.Empty(PollBenchmarks.Faults);
+        var means = summary.Reports.ToDictionary(Case, report => report.ResultStatistics!.Mean);
+        foreach (var report in summary.Reports)
         {
-            workload.Run(Warmup, Warmup / 5);
-            output.WriteLine($"built {workload.Name}: {workload.Census()} ({HotItems} live in the hot source)");
+            var statistics = report.ResultStatistics!;
+            var error = statistics.ConfidenceInterval.Margin;
+            output.WriteLine(
+                $"{Case(report)}: mean {statistics.Mean / 1_000:F3} us, error {error / 1_000:F3} us, upper {(statistics.Mean + error) / 1_000:F3} us, " +
+                $"allocated {report.GcStats.GetBytesAllocatedPerOperation(report.BenchmarkCase):N0} B/op");
         }
 
-        var samples = workloads.ToDictionary(workload => workload, _ => new List<Round>());
-        for (var round = 1; round <= Rounds; round++)
+        foreach (var history in new[] { History.EndedOnly, History.OnePercentLost })
         {
-            foreach (var workload in workloads)
-            {
-                GC.Collect();
-                GC.WaitForPendingFinalizers();
-                GC.Collect();
-                var result = workload.Run(AppliesPerRound, WholeSourceReadsPerRound);
-                samples[workload].Add(result);
-                output.WriteLine(
-                    $"round {round} {workload.Name,-17}: apply median {result.ApplyMedianMicroseconds,7:F1} us p95 {result.ApplyP95Microseconds,7:F1} us; " +
-                    $"apply+Find median {result.ReadyMedianMicroseconds,7:F1} us; apply+Work(source) median {result.WholeMedianMicroseconds,9:F1} us; " +
-                    $"allocated {result.BytesPerApply,4:N0} B/apply, {result.BytesPerReady,4:N0} B/apply+Find, {result.BytesPerWhole,12:N0} B/apply+Work; " +
-                    $"gen0 {result.Gen0Collections}; not applied or wrong {result.Failures}");
-            }
+            var (small, large) = (means[(nameof(ReducerApply.Apply), history, 10_000)], means[(nameof(ReducerApply.Apply), history, 100_000)]);
+            output.WriteLine($"apply, {history}: 10k {small / 1_000:F3} us, 100k {large / 1_000:F3} us, ratio {large / small:F2} (rule: <= 3.00)");
+            Assert.True(large <= 3 * small, $"Apply cost grew with {history} history: {large:F0} ns at 100k against {small:F0} ns at 10k.");
         }
-
-        double ApplyMedian(Workload workload) => Median(samples[workload].Select(result => result.ApplyMedianMicroseconds));
-        double WholeMedian(Workload workload) => Median(samples[workload].Select(result => result.WholeMedianMicroseconds));
-        string Compare(Func<Workload, double> metric, Workload small, Workload large) =>
-            $"10k {metric(small):F1} us, 100k {metric(large):F1} us, ratio {metric(large) / metric(small):F2}";
-
-        var (endedSmall, endedLarge, unresolvedSmall, unresolvedLarge, lostSmall, lostLarge) = (workloads[0], workloads[1], workloads[2], workloads[3], workloads[4], workloads[5]);
-        output.WriteLine($"apply, Ended-only history: {Compare(ApplyMedian, endedSmall, endedLarge)} (rule: <= 3.00)");
-        output.WriteLine(
-            $"apply, {unresolvedSmall.Unresolved} vs {unresolvedLarge.Unresolved} unresolved Unknown history items inside the settling window: " +
-            $"{Compare(ApplyMedian, unresolvedSmall, unresolvedLarge)} (reported, not gated: every complete poll revisits each tracked item it does not list)");
-        output.WriteLine(
-            $"apply, {lostSmall.Unresolved} vs {lostLarge.Unresolved} history items settled into Lost: {Compare(ApplyMedian, lostSmall, lostLarge)} (rule: <= 3.00)");
-        output.WriteLine(
-            $"apply+Work(source), Ended-only history: {Compare(WholeMedian, endedSmall, endedLarge)} " +
-            "(Work projects every record of the source, Ended history included, so it scales with total history)");
-        output.WriteLine($"apply+Work(source), unresolved history: {Compare(WholeMedian, unresolvedSmall, unresolvedLarge)}");
-        output.WriteLine($"apply+Work(source), Lost history: {Compare(WholeMedian, lostSmall, lostLarge)}");
-        Assert.All(samples.Values.SelectMany(rounds => rounds), result => Assert.Equal(0, result.Failures));
-        Assert.True(
-            ApplyMedian(endedLarge) <= 3 * ApplyMedian(endedSmall),
-            $"Apply cost grew with Ended history: {ApplyMedian(endedLarge):F1} us at 100k against {ApplyMedian(endedSmall):F1} us at 10k.");
-        Assert.True(
-            ApplyMedian(lostLarge) <= 3 * ApplyMedian(lostSmall),
-            $"Apply cost grew with Lost history: {ApplyMedian(lostLarge):F1} us at 100k against {ApplyMedian(lostSmall):F1} us at 10k.");
     }
 
-    private static double Median(IEnumerable<double> values)
+    private static (string Method, History History, int Size) Case(BenchmarkReport report) => (
+        report.BenchmarkCase.Descriptor.WorkloadMethod.Name,
+        (History)report.BenchmarkCase.Parameters[nameof(PollBenchmarks.History)],
+        (int)report.BenchmarkCase.Parameters[nameof(PollBenchmarks.Size)]);
+
+    [InvocationCount(PollsPerIteration)]
+    public class ReducerApply : PollBenchmarks
     {
-        var sorted = values.Order().ToArray();
-        return sorted[sorted.Length / 2];
+        private const int PollsPerIteration = 1_000;
+
+        protected override int Polls => PollsPerIteration;
+
+        [Benchmark]
+        public ApplyOutcome Apply() => this.ApplyNextPoll();
+
+        [Benchmark]
+        public WorkView? ApplyThenFind()
+        {
+            this.ApplyNextPoll();
+            return this.FindHotItem();
+        }
     }
 
-    private static double Percentile(double[] sorted, double fraction) => sorted[(int)Math.Ceiling(fraction * sorted.Length) - 1];
-
-    private sealed record Round(
-        double ApplyMedianMicroseconds,
-        double ApplyP95Microseconds,
-        double ReadyMedianMicroseconds,
-        double WholeMedianMicroseconds,
-        long BytesPerApply,
-        long BytesPerReady,
-        long BytesPerWhole,
-        int Gen0Collections,
-        int Failures);
-
-    private sealed class Workload
+    [InvocationCount(PollsPerIteration)]
+    public class SourceView : PollBenchmarks
     {
+        private const int PollsPerIteration = 8;
+
+        protected override int Polls => PollsPerIteration;
+
+        [Benchmark]
+        public IReadOnlyList<WorkView> ApplyThenWork()
+        {
+            this.ApplyNextPoll();
+            return this.WorkOfSource();
+        }
+    }
+
+    // Each invocation applies the next poll, so IterationSetup builds that iteration's batches outside the timed region.
+    [InProcess]
+    [MemoryDiagnoser]
+    public abstract class PollBenchmarks
+    {
+        private const int HotItems = 200;
         private const int HistoryChunk = 1_000;
+        private const int OneInEveryHundred = 100;
 
-        private readonly ManualClock clock = new(Start);
-        private readonly ActivityLedger ledger;
-        private readonly SourceGeneration generation;
         private readonly WorkKey[] hot = [.. Enumerable.Range(0, HotItems).Select(i => Session($"hot-{i:D4}"))];
         private readonly ProcessIncarnation[] hotProcesses = [.. Enumerable.Range(0, HotItems).Select(i => new ProcessIncarnation(1_000 + i, Start.AddHours(-1)))];
+        private ManualClock clock = new(Start);
+        private ActivityLedger ledger = new(Settings, new ManualClock(Start));
+        private SourceGeneration generation;
+        private Dictionary<WorkState, int> historyCensus = [];
+        private SafeSourceBatch[] batches = [];
+        private WorkState[] expected = [];
+        private int next;
         private bool busy;
+        private int failures;
 
-        private Workload(int size, int? unresolvedEvery, bool settles)
+        public static ConcurrentQueue<string> Faults { get; } = new();
+
+        [Params(10_000, 100_000)]
+        public int Size { get; set; }
+
+        [ParamsAllValues]
+        public History History { get; set; }
+
+        protected abstract int Polls { get; }
+
+        [GlobalSetup]
+        public void Build()
         {
-            this.Size = size;
-            this.Name = $"{(unresolvedEvery is { } every ? $"{100.0 / every:0.#}% {(settles ? "Lost" : "unresolved")}" : "Ended-only")} {size / 1_000}k";
-            var settings = settles
-                ? Settings
-                : new LivenessSettings(Settings.MissedPollLimit, Settings.MissedPollMargin, Settings.StartingWindow, Settings.RestartWindow, TimeSpan.FromDays(365));
+            this.clock = new ManualClock(Start);
+            var settings = this.History == History.OnePercentUnresolved
+                ? new LivenessSettings(Settings.MissedPollLimit, Settings.MissedPollMargin, Settings.StartingWindow, Settings.RestartWindow, TimeSpan.FromDays(365))
+                : Settings;
             this.ledger = new ActivityLedger(settings, this.clock);
             this.generation = this.ledger.StartGeneration(Claude);
-        }
-
-        public int Size { get; }
-
-        public string Name { get; }
-
-        public int Unresolved { get; private set; }
-
-        public static Workload Build(int size, int? unresolvedEvery, bool settles)
-        {
-            var workload = new Workload(size, unresolvedEvery, settles);
-            var history = size - HotItems;
-            bool StaysTracked(int index) => unresolvedEvery is { } every && index % every == 0;
+            var history = this.Size - HotItems;
+            bool StaysTracked(int index) => this.History != History.EndedOnly && index % OneInEveryHundred == 0;
             for (var offset = 0; offset < history; offset += HistoryChunk)
             {
                 var chunk = Enumerable.Range(offset, Math.Min(HistoryChunk, history - offset)).ToArray();
-                workload.Poll(
+                this.Poll(
                     chunk.Select(i => StaysTracked(i)
                         ? ListedWork.Entry(Session($"old-{i:D6}"), Entrypoint.InteractiveCli)
                         : ListedWork.Entry(Session($"old-{i:D6}"), Entrypoint.InteractiveCli, ListedStatus.Idle, incarnation: HistoryProcess(i))),
                     chunk.Where(i => !StaysTracked(i)).Select(HistoryProcess));
             }
 
-            workload.Poll([], []);
-            var views = workload.ledger.Work(Claude);
-            var expectedTracked = Enumerable.Range(0, history).Count(StaysTracked);
-            var ended = views.Count(view => view.State == WorkState.Ended);
-            workload.Unresolved = views.Count - ended - HotItems;
-            if (views.Count != size || workload.Unresolved != expectedTracked || ended != history - expectedTracked)
+            var settled = this.clock.GetUtcNow() + UntilMissedPollLimit(PollEvery) + Settings.LostSettlingWindow;
+            while (this.clock.GetUtcNow() <= settled)
             {
-                throw new InvalidOperationException("The workload did not build the intended projection.");
+                this.Poll([], []);
             }
 
-            return workload;
+            var tracked = Enumerable.Range(0, history).Count(StaysTracked);
+            var trackedState = this.History == History.OnePercentLost ? WorkState.Lost : WorkState.Stale;
+            this.historyCensus = this.HistoryCensus();
+            var intended = new Dictionary<WorkState, int> { [WorkState.Ended] = history - tracked };
+            if (tracked > 0)
+            {
+                intended[trackedState] = tracked;
+            }
+
+            if (this.ledger.Work(Claude).Count != this.Size || !this.historyCensus.OrderBy(pair => pair.Key).SequenceEqual(intended.OrderBy(pair => pair.Key)))
+            {
+                throw new InvalidOperationException($"The {this.History} {this.Size} workload built {string.Join(", ", this.historyCensus)}, not {string.Join(", ", intended)}.");
+            }
         }
 
-        public string Census() =>
-            string.Join(", ", this.ledger.Work(Claude).CountBy(view => view.State).OrderBy(pair => pair.Key).Select(pair => $"{pair.Value} {pair.Key}"));
-
-        public Round Run(int applies, int wholeSourceReads)
+        [IterationSetup]
+        public void PreparePolls()
         {
-            var total = applies + wholeSourceReads;
-            var batches = new SafeSourceBatch[total];
-            var expected = new WorkState[total];
-            var start = this.clock.GetUtcNow();
-            for (var i = 0; i < total; i++)
+            this.batches = new SafeSourceBatch[this.Polls];
+            this.expected = new WorkState[this.Polls];
+            this.next = 0;
+            var now = this.clock.GetUtcNow();
+            for (var i = 0; i < this.Polls; i++)
             {
                 this.busy = !this.busy;
-                expected[i] = this.busy ? WorkState.Busy : WorkState.Idle;
-                batches[i] = this.HotBatch(start + (PollEvery * (i + 1)), this.busy ? ListedStatus.Busy : ListedStatus.Idle);
+                this.expected[i] = this.busy ? WorkState.Busy : WorkState.Idle;
+                this.batches[i] = this.HotBatch(now + (PollEvery * (i + 1)), this.busy ? ListedStatus.Busy : ListedStatus.Idle);
             }
+        }
 
-            var apply = new double[applies];
-            var ready = new double[applies];
-            var bytes = new long[applies];
-            var readyBytes = new long[applies];
-            var whole = new double[wholeSourceReads];
-            var wholeBytes = new long[wholeSourceReads];
-            var failures = 0;
-            var gen0 = GC.CollectionCount(0);
-            for (var i = 0; i < applies; i++)
+        [GlobalCleanup]
+        public void CheckWorkload()
+        {
+            var census = this.HistoryCensus();
+            if (this.failures > 0 || !census.OrderBy(pair => pair.Key).SequenceEqual(this.historyCensus.OrderBy(pair => pair.Key)))
             {
-                this.clock.Advance(PollEvery);
-                var allocatedBefore = GC.GetAllocatedBytesForCurrentThread();
-                var began = Stopwatch.GetTimestamp();
-                var outcome = this.ledger.Apply(batches[i]);
-                var applied = Stopwatch.GetTimestamp();
-                bytes[i] = GC.GetAllocatedBytesForCurrentThread() - allocatedBefore;
-                var view = this.ledger.Find(this.hot[HotItems - 1]);
-                var projected = Stopwatch.GetTimestamp();
-                readyBytes[i] = GC.GetAllocatedBytesForCurrentThread() - allocatedBefore;
-                apply[i] = Stopwatch.GetElapsedTime(began, applied).TotalMicroseconds;
-                ready[i] = Stopwatch.GetElapsedTime(began, projected).TotalMicroseconds;
-                if (outcome != ApplyOutcome.Applied || view?.State != expected[i])
-                {
-                    failures++;
-                }
+                Faults.Enqueue($"{this.GetType().Name} {this.History} {this.Size}: {this.failures} polls not applied or misread; history census " +
+                    $"{string.Join(", ", census)} against {string.Join(", ", this.historyCensus)} at build");
             }
+        }
 
-            for (var i = 0; i < wholeSourceReads; i++)
+        protected ApplyOutcome ApplyNextPoll()
+        {
+            this.clock.Advance(PollEvery);
+            var outcome = this.ledger.Apply(this.batches[this.next++]);
+            if (outcome != ApplyOutcome.Applied)
             {
-                this.clock.Advance(PollEvery);
-                var allocatedBefore = GC.GetAllocatedBytesForCurrentThread();
-                var began = Stopwatch.GetTimestamp();
-                var outcome = this.ledger.Apply(batches[applies + i]);
-                var views = this.ledger.Work(Claude);
-                var projected = Stopwatch.GetTimestamp();
-                wholeBytes[i] = GC.GetAllocatedBytesForCurrentThread() - allocatedBefore;
-                whole[i] = Stopwatch.GetElapsedTime(began, projected).TotalMicroseconds;
-                if (outcome != ApplyOutcome.Applied || views.Count != this.Size || this.ledger.Find(this.hot[HotItems - 1])?.State != expected[applies + i])
-                {
-                    failures++;
-                }
+                this.failures++;
             }
 
-            Array.Sort(apply);
-            Array.Sort(ready);
-            Array.Sort(whole);
-            Array.Sort(bytes);
-            Array.Sort(readyBytes);
-            Array.Sort(wholeBytes);
-            return new Round(
-                Percentile(apply, 0.5),
-                Percentile(apply, 0.95),
-                Percentile(ready, 0.5),
-                Percentile(whole, 0.5),
-                bytes[applies / 2],
-                readyBytes[applies / 2],
-                wholeBytes[wholeSourceReads / 2],
-                GC.CollectionCount(0) - gen0,
-                failures);
+            return outcome;
+        }
+
+        protected WorkView? FindHotItem()
+        {
+            var view = this.ledger.Find(this.hot[HotItems - 1]);
+            if (view?.State != this.expected[this.next - 1])
+            {
+                this.failures++;
+            }
+
+            return view;
+        }
+
+        protected IReadOnlyList<WorkView> WorkOfSource()
+        {
+            var views = this.ledger.Work(Claude);
+            if (views.Count != this.Size)
+            {
+                this.failures++;
+            }
+
+            return views;
         }
 
         private static ProcessIncarnation HistoryProcess(int index) => new(100_000 + index, Start.AddHours(-2));
+
+        private Dictionary<WorkState, int> HistoryCensus() =>
+            this.ledger.Work(Claude).Where(view => view.State is not (WorkState.Busy or WorkState.Idle)).CountBy(view => view.State).ToDictionary();
 
         private SafeSourceBatch HotBatch(DateTimeOffset at, ListedStatus status) => SafeSourceBatch.Polled(
             Claude,
@@ -243,15 +240,14 @@ public sealed class ReducerBenchmarks(ITestOutputHelper output)
         private void Poll(IEnumerable<ListedWork> history, IEnumerable<ProcessIncarnation> historyProcesses)
         {
             this.clock.Advance(PollEvery);
-            var batch = SafeSourceBatch.Polled(
+            this.ledger.Apply(SafeSourceBatch.Polled(
                 Claude,
                 this.generation,
                 this.clock.GetUtcNow(),
                 PollEvery,
                 this.hot.Select((key, i) => ListedWork.Entry(key, Entrypoint.Background, ListedStatus.Idle, incarnation: this.hotProcesses[i])).Concat(history),
                 this.hotProcesses.Concat(historyProcesses),
-                processInventoryComplete: true);
-            this.ledger.Apply(batch);
+                processInventoryComplete: true));
         }
     }
 }
