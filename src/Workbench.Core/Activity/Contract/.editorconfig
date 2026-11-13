@@ -1,0 +1,4 @@
+[*.cs]
+# The CA1 plan groups the source contract by concept into a few named files, each holding several types.
+dotnet_diagnostic.SA1402.severity = none
+dotnet_diagnostic.SA1649.severity = none
