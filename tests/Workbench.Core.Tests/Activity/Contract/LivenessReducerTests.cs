@@ -201,6 +201,82 @@ public sealed class LivenessReducerTests(ITestOutputHelper output)
     }
 
     [Fact]
+    public void LV9_FailedAttemptsBelowTheLimitKeepTheSourceConnectedAndTheLimitDisconnectsItWithTheLastFailuresReason()
+    {
+        var scenario = new LedgerScenario(Claude);
+        var key = Session(SessionA);
+        var live = Process(101);
+        var busy = ListedWork.Entry(key, Entrypoint.Background, ListedStatus.Busy, incarnation: live);
+        scenario.Poll([busy], [live]);
+        FailBelowTheLimit(scenario);
+        scenario.Poll([busy], [live]);
+        FailBelowTheLimit(scenario);
+        AssertFresh(scenario, key, WorkState.Busy);
+
+        scenario.Fail(DisconnectReason.OutputTooLarge);
+
+        var source = scenario.Ledger.Source(Claude)!;
+        var view = scenario.View(key);
+        Assert.Equal((SourceState.Disconnected, DisconnectReason.OutputTooLarge), (source.State, source.Disconnect));
+        Assert.Equal((WorkState.Stale, ReasonCode.SourceDisconnected), (view.State, view.Reason));
+        Assert.Equal(scenario.Now, view.StateSince);
+    }
+
+    [Fact]
+    public void LV9_SilenceAfterAFailedAttemptDisconnectsTheSourceWithThatAttemptsReason()
+    {
+        var scenario = new LedgerScenario(Claude);
+        var key = Session(SessionA);
+        var live = Process(101);
+        scenario.Poll([ListedWork.Entry(key, Entrypoint.Background, ListedStatus.Busy, incarnation: live)], [live]);
+        scenario.Fail(DisconnectReason.TransportError);
+        var limitPassesAt = scenario.Now + (PollEvery * (Settings.MissedPollLimit - 1)) + Settings.MissedPollMargin;
+
+        scenario.Clock.Advance(limitPassesAt - scenario.Now);
+        AssertFresh(scenario, key, WorkState.Busy);
+        scenario.Clock.Advance(TimeSpan.FromTicks(1));
+
+        var source = scenario.Ledger.Source(Claude)!;
+        var view = scenario.View(key);
+        Assert.Equal((SourceState.Disconnected, DisconnectReason.TransportError), (source.State, source.Disconnect));
+        Assert.Equal((WorkState.Stale, ReasonCode.SourceDisconnected, limitPassesAt), (view.State, view.Reason, view.StateSince));
+    }
+
+    [Fact]
+    public void ASourceWhoseEveryAttemptFailedReadsDisconnectedWithTheLastReason()
+    {
+        var scenario = new LedgerScenario(Claude);
+        Assert.Null(scenario.Ledger.Source(Claude));
+
+        scenario.Fail(DisconnectReason.NonZeroExit);
+
+        var source = scenario.Ledger.Source(Claude)!;
+        Assert.Equal((SourceState.Disconnected, DisconnectReason.NonZeroExit), (source.State, source.Disconnect));
+        Assert.Null(source.LastSucceededAt);
+    }
+
+    [Fact]
+    public void AnUnavailableSourceThatFallsSilentReadsDisconnectedAfterTheMissedPollLimit()
+    {
+        var scenario = new LedgerScenario(Claude);
+        var key = Session(SessionA);
+        var live = Process(101);
+        scenario.Poll([ListedWork.Entry(key, Entrypoint.Background, ListedStatus.Idle, incarnation: live)], [live]);
+        scenario.Unavailable();
+        var reportedAt = scenario.Now;
+
+        scenario.Clock.Advance(UntilMissedPollLimit(PollEvery));
+        Assert.Equal(SourceState.Unavailable, scenario.Ledger.Source(Claude)!.State);
+        Assert.Equal((WorkState.Stale, ReasonCode.SourceUnavailable), scenario.StateOf(key));
+        scenario.Clock.Advance(TimeSpan.FromTicks(1));
+
+        var source = scenario.Ledger.Source(Claude)!;
+        var view = scenario.View(key);
+        Assert.Equal((SourceState.Disconnected, DisconnectReason.Timeout), (source.State, source.Disconnect));
+        Assert.Equal((WorkState.Stale, ReasonCode.SourceDisconnected, reportedAt + UntilMissedPollLimit(PollEvery)), (view.State, view.Reason, view.StateSince));
+    }
+
+    [Fact]
     public void LV9_SwitchingToASixtySecondIntervalKeepsWorkFreshBetweenOnTimePolls()
     {
         var scenario = new LedgerScenario(Claude) { Interval = FiveSeconds };
@@ -471,6 +547,14 @@ public sealed class LivenessReducerTests(ITestOutputHelper output)
         Assert.Equal((WorkState.Busy, ReasonCode.SourceReported), scenario.StateOf(unknownType));
         Assert.Equal(WaitingFor.Unknown, scenario.View(unknownType).WaitingFor);
         Assert.Null(scenario.Ledger.Find(Session(SessionC)));
+    }
+
+    private static void FailBelowTheLimit(LedgerScenario scenario)
+    {
+        for (var failed = 1; failed < Settings.MissedPollLimit; failed++)
+        {
+            scenario.Fail(failed % 2 == 0 ? DisconnectReason.NonZeroExit : DisconnectReason.MalformedOutput);
+        }
     }
 
     private static void AssertFresh(LedgerScenario scenario, WorkKey key, WorkState state)

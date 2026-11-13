@@ -67,6 +67,14 @@ public sealed class ReplayTests(ITestOutputHelper output)
         var processes = new[] { Process(101), Process(102), Process(103) };
         ListedStatus[] statuses = [ListedStatus.Idle, ListedStatus.Busy, ListedStatus.Waiting];
         scenario.Poll([.. keys.Select((key, i) => ListedWork.Entry(key, Entrypoint.Background, statuses[i], incarnation: processes[i]))], processes);
+        WorkState[] polled = [WorkState.Idle, WorkState.Busy, WorkState.Waiting];
+        for (var failed = 1; failed < Settings.MissedPollLimit; failed++)
+        {
+            scenario.Fail(DisconnectReason.Timeout);
+        }
+
+        Assert.Equal(SourceState.Connected, scenario.Ledger.Source(Claude)!.State);
+        Assert.Equal(polled, keys.Select(key => this.Write($"after {Settings.MissedPollLimit - 1} failed polls", scenario, key).State));
 
         scenario.Fail(DisconnectReason.Timeout);
 

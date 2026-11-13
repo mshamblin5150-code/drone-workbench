@@ -223,14 +223,14 @@ public sealed class ActivityLedger
     public SourceView? Source(SourceInstanceId source)
     {
         ArgumentNullException.ThrowIfNull(source);
-        if (!this.sources.TryGetValue(source, out var partition) || partition.Health is not { } health)
+        if (!this.sources.TryGetValue(source, out var partition) || partition.Schedule is null)
         {
             return null;
         }
 
-        return this.DisconnectedSince(partition, this.clock.GetUtcNow()) is not null
-            ? new SourceView(source, partition.Generation, SourceState.Disconnected, DisconnectReason.Timeout, partition.LastSucceededAt)
-            : new SourceView(source, partition.Generation, health, partition.Disconnect, partition.LastSucceededAt);
+        return this.DisconnectedSince(partition, this.clock.GetUtcNow()) is null && partition.Health is { } health
+            ? new SourceView(source, partition.Generation, health, null, partition.LastSucceededAt)
+            : new SourceView(source, partition.Generation, SourceState.Disconnected, partition.LastFailure ?? DisconnectReason.Timeout, partition.LastSucceededAt);
     }
 
     private static bool RouteFits(ControlAction action, WorkView target) => action switch
@@ -313,10 +313,10 @@ public sealed class ActivityLedger
                 this.ApplyPoll(partition, poll);
                 break;
             case SafeSourceBatch.PollFailure failure:
-                this.ApplySourceWide(partition, failure, Signal.SourceDisconnected, SourceState.Disconnected, failure.Reason);
+                this.ApplyFailure(partition, failure);
                 break;
             case SafeSourceBatch.SourceAbsent absent:
-                this.ApplySourceWide(partition, absent, Signal.SourceUnavailable, SourceState.Unavailable, null);
+                this.ApplyAbsence(partition, absent);
                 break;
         }
 
@@ -325,16 +325,28 @@ public sealed class ActivityLedger
         return ApplyOutcome.Applied;
     }
 
-    private void ApplySourceWide(SourcePartition partition, SafeSourceBatch batch, Signal signal, SourceState health, DisconnectReason? disconnect)
+    private void ApplyFailure(SourcePartition partition, SafeSourceBatch.PollFailure failure)
     {
         foreach (var record in partition.Tracked)
         {
-            record.Missed = record.Missed.Add(batch.ObservedAt, this.settings);
-            Transit(record, signal, batch.ObservedAt, Channel.Poll, batch.Generation);
+            record.Missed = record.Missed.Add(failure.ObservedAt, this.settings);
         }
 
-        partition.Health = health;
-        partition.Disconnect = disconnect;
+        partition.Missed = partition.Missed.Add(failure.ObservedAt, this.settings);
+        partition.LastFailure = failure.Reason;
+    }
+
+    private void ApplyAbsence(SourcePartition partition, SafeSourceBatch.SourceAbsent absent)
+    {
+        foreach (var record in partition.Tracked)
+        {
+            record.Missed = record.Missed.Add(absent.ObservedAt, this.settings);
+            Transit(record, Signal.SourceUnavailable, absent.ObservedAt, Channel.Poll, absent.Generation);
+        }
+
+        partition.Health = SourceState.Unavailable;
+        partition.Missed = default;
+        partition.LastFailure = null;
     }
 
     private void ApplyPoll(SourcePartition partition, SafeSourceBatch.PollSnapshot poll)
@@ -377,7 +389,7 @@ public sealed class ActivityLedger
         partition.LastSucceededAt = poll.ObservedAt;
         partition.Missed = default;
         partition.Health = SourceState.Connected;
-        partition.Disconnect = null;
+        partition.LastFailure = null;
     }
 
     private ControlReceipt Gate(ControlReceipt requested, DateTimeOffset now)
@@ -444,7 +456,7 @@ public sealed class ActivityLedger
     }
 
     private DateTimeOffset? DisconnectedSince(SourcePartition partition, DateTimeOffset now) =>
-        partition.Health == SourceState.Connected ? partition.Missed.LimitPassedAt(partition.Schedule, now, this.settings) : null;
+        partition.Missed.LimitPassedAt(partition.Schedule, now, this.settings);
 
     private SourcePartition PartitionOf(SourceInstanceId source)
     {
@@ -477,7 +489,7 @@ public sealed class ActivityLedger
 
         public SourceState? Health { get; set; }
 
-        public DisconnectReason? Disconnect { get; set; }
+        public DisconnectReason? LastFailure { get; set; }
 
         public CapabilityReport? Admitted { get; set; }
 
