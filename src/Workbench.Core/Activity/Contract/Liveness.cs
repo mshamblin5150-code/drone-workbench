@@ -259,7 +259,7 @@ internal static class Liveness
         return observedAt - prior.FirstSeenAt <= settings.StartingWindow ? Signal.ListedPending : Signal.ListedPendingOverdue;
     }
 
-    internal static Signal ClassifyUnlisted(in Prior prior, ProcessFate lastFate)
+    internal static Signal ClassifyUnlisted(in Prior prior, ProcessFate lastFate, bool inventoryComplete)
     {
         if (prior.SessionEndSeen && lastFate == ProcessFate.Exited)
         {
@@ -271,8 +271,9 @@ internal static class Liveness
             return lastFate switch
             {
                 ProcessFate.Alive => Signal.UnlistedAlive,
-                ProcessFate.Unknown when prior.LastIncarnation is not null => Signal.UnlistedLivenessUnknown,
-                _ => Signal.UnlistedAfterStop,
+                ProcessFate.Exited => Signal.UnlistedAfterStop,
+                _ when prior.LastIncarnation is null && inventoryComplete => Signal.UnlistedAfterStop,
+                _ => Signal.UnlistedLivenessUnknown,
             };
         }
 

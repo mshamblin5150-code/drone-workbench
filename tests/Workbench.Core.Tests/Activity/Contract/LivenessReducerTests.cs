@@ -301,6 +301,28 @@ public sealed class LivenessReducerTests(ITestOutputHelper output)
     }
 
     [Fact]
+    public void AStoppedEntryWithNoKnownProcessEndsOnRemovalOnlyUnderACompleteInventory()
+    {
+        ReasonCode RemovedUnder(bool inventoryComplete, out WorkState state)
+        {
+            var scenario = new LedgerScenario(Claude);
+            var key = Session(SessionA);
+            scenario.Poll([ListedWork.Entry(key, Entrypoint.Background, lifecycle: SourceLifecycle.Stopped)], []);
+            Assert.Equal((WorkState.Stopped, ReasonCode.SourceReported), scenario.StateOf(key));
+
+            scenario.Poll([], [], inventoryComplete);
+
+            (state, var reason) = scenario.StateOf(key);
+            return reason;
+        }
+
+        Assert.Equal(ReasonCode.ProcessInventoryIncomplete, RemovedUnder(inventoryComplete: false, out var partial));
+        Assert.Equal(WorkState.Unknown, partial);
+        Assert.Equal(ReasonCode.RemovedAfterStop, RemovedUnder(inventoryComplete: true, out var complete));
+        Assert.Equal(WorkState.Ended, complete);
+    }
+
+    [Fact]
     public void HooksNeverCreateWorkAndOnlyKnownNotificationTypesProjectWaiting()
     {
         var scenario = new LedgerScenario(Claude);

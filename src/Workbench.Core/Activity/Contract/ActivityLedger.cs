@@ -339,7 +339,8 @@ public sealed class ActivityLedger
             if (record.ListingStamp != stamp)
             {
                 record.LastFate = Liveness.FateOf(record.LastIncarnation, poll.LiveProcesses, poll.ProcessInventoryComplete);
-                Transit(record, Liveness.ClassifyUnlisted(record.Prior, record.LastFate), poll.ObservedAt, Channel.Poll, poll.Generation);
+                var signal = Liveness.ClassifyUnlisted(record.Prior, record.LastFate, poll.ProcessInventoryComplete);
+                Transit(record, signal, poll.ObservedAt, Channel.Poll, poll.Generation);
             }
         }
 
