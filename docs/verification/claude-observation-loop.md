@@ -16,7 +16,7 @@ not budgets.
 | Live read through the owner-checked CLI | Exit 0, `Fresh`, three sessions, supervisor `Unknown`, exact unmatched count `null` |
 | Invalid `DRONE_WORKBENCH_INSTANCE` | CLI exit 2 |
 | Client impersonation level | A synthetic server's `RunAsClient` saw `Impersonation` before the fix and sees `Identification` after it. The regression test is committed ahead of the fix |
-| Measurement guards | A sleeper that starts a child was stopped at about 2.1 s with no process left, over-cap output was refused, and relative or empty configuration roots were refused before any command ran |
+| Measurement guards | `tools/test-measure-claude-polling.ps1` passes 12 synthetic checks. They cover a timeout with a live parent and grandchild, a parent that exits while its child holds stdout, over-cap output, child environment removal, relative and empty configuration roots, and zero or negative intervals. The exited-parent case failed before the runner placed each process in a Job Object, with the child left running |
 | Ordinary tests | Synthetic only. Host processes run with an empty `PATH`, so the Claude source reports `MissingExecutable` and no real Claude command runs |
 | Live loop, read-only | 15 polls at 15 s against the installed CLI. Every snapshot read `Fresh`. Three desktop sessions, supervisor `Unknown`, controls unavailable |
 | Unknown counts in the live snapshot | Process inventory incomplete. Known unmatched lower bound 11, exact unmatched count `null`, gap `ProcessInventoryIncomplete` reported |
@@ -54,7 +54,10 @@ other sessions were active, so the spread is wider than on an idle PC. Child CPU
 counts each `claude.exe` process only, not any process it starts.
 
 The script gives each command a timeout (10 s by default) and a shared 1 MiB
-output cap, and kills the whole process tree on either limit. It refuses to run
+output cap. Each measured process runs in its own Job Object. On either limit,
+the script terminates the job, which stops descendants even after their parent
+has exited. A child started in the moment before the job assignment would
+escape it. The report counts runs that could not be placed in a job. It refuses to run
 unless the configuration root passes the same checks as `ClaudeReadCommandRunner`,
 uses the same child environment and working directory, and records only a
 matched version string. A first measurement, made before the script had these
@@ -87,6 +90,16 @@ no upward trend after the first poll.
 
 These values are constants in `ObservationSettings`. Changing them needs a
 ruling on ticket 9, not a code redesign.
+
+## Source version change
+
+The installed Claude CLI updated itself from `2.1.322` to `2.1.323` during the
+review fixes. Neither this branch nor PR 21 installed or updated it. PR 21's
+two-version allowlist refuses `2.1.323`. The loop therefore reports
+`UnsupportedVersion`, and the measurement script counts its one-shot Host
+captures as failures. The recorded measurements were taken on `2.1.322`.
+Admitting `2.1.323` needs the same compatibility check that PR 21 used, which is
+outside this PR.
 
 ## Not covered
 

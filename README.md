@@ -89,7 +89,8 @@ result in memory. The snapshot marks a source `Fresh`, `Stale`, `None` or
 no host answers, the CLI prints a reason and exits 3. Only one Host can run per
 Windows user. See [the loop design](docs/plan/claude-observation-loop.md) and
 [its verification record](docs/verification/claude-observation-loop.md).
-`tools/measure-claude-polling.ps1` measures the per-poll cost on this PC.
+`tools/measure-claude-polling.ps1` measures the per-poll cost on this PC, and
+`tools/test-measure-claude-polling.ps1` checks its runner with synthetic processes.
 
 ## Chosen direction
 
