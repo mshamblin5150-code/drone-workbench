@@ -149,7 +149,8 @@ internal static class Liveness
         Never(Untracked, Signal.HookWaiting),
 
         Move(Tracked, Signal.SourceDisconnected, WorkState.Stale, ReasonCode.SourceDisconnected),
-        Never(Untracked, Signal.SourceDisconnected),
+        Hold([WorkState.Ended], Signal.SourceDisconnected),
+        Never([null], Signal.SourceDisconnected),
         Move(Tracked, Signal.SourceUnavailable, WorkState.Stale, ReasonCode.SourceUnavailable),
         Never(Untracked, Signal.SourceUnavailable),
         Move(Tracked, Signal.ConnectionLost, WorkState.Unknown, ReasonCode.ConnectionLost),

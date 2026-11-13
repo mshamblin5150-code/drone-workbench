@@ -189,9 +189,53 @@ public sealed class LivenessReducerTests(ITestOutputHelper output)
         scenario.Clock.Advance(TimeSpan.FromSeconds(1));
         var stale = scenario.View(key);
         var source = scenario.Ledger.Source(Claude)!;
-        Assert.Equal((WorkState.Stale, ReasonCode.NoConfirmation), (stale.State, stale.Reason));
+        Assert.Equal((WorkState.Stale, ReasonCode.SourceDisconnected), (stale.State, stale.Reason));
         Assert.Equal(confirmedAt + Settings.StaleAfter, stale.StateSince);
         Assert.Equal((SourceState.Disconnected, DisconnectReason.Timeout), (source.State, source.Disconnect));
+    }
+
+    [Fact]
+    public void AnItemThePollingSourceStopsListingGoesStaleForLackOfConfirmation()
+    {
+        var scenario = new LedgerScenario(Claude);
+        var listed = Session(SessionA);
+        var dropped = Session(SessionB);
+        var live = Process(101);
+        var orphan = Process(102);
+        var keep = ListedWork.Entry(listed, Entrypoint.InteractiveCli, ListedStatus.Idle, incarnation: live);
+        scenario.Poll([keep, ListedWork.Entry(dropped, Entrypoint.InteractiveCli, ListedStatus.Idle, incarnation: orphan)], [live, orphan]);
+        var lastListedAt = scenario.Now;
+
+        while (scenario.Now - lastListedAt <= Settings.StaleAfter)
+        {
+            scenario.Poll([keep], [live, orphan]);
+        }
+
+        var stale = scenario.View(dropped);
+        Assert.Equal(SourceState.Connected, scenario.Ledger.Source(Claude)!.State);
+        Assert.Equal((WorkState.Idle, ReasonCode.SourceReported), scenario.StateOf(listed));
+        Assert.Equal((WorkState.Stale, ReasonCode.NoConfirmation), (stale.State, stale.Reason));
+        Assert.Equal(lastListedAt + Settings.StaleAfter, stale.StateSince);
+    }
+
+    [Fact]
+    public void HooksDuringPollSilenceConfirmNothingAndTheWorkGoesStaleWithItsSilentSource()
+    {
+        var scenario = new LedgerScenario(Claude);
+        var key = Session(SessionA);
+        var live = Process(101);
+        scenario.Poll([ListedWork.Entry(key, Entrypoint.Background, ListedStatus.Busy, incarnation: live)], [live]);
+        var polledAt = scenario.Now;
+
+        while (scenario.Now - polledAt <= Settings.StaleAfter)
+        {
+            scenario.Hooks(HookEvent.Notification(key, WaitingFor.PermissionPrompt));
+        }
+
+        var view = scenario.View(key);
+        Assert.Equal(SourceState.Disconnected, scenario.Ledger.Source(Claude)!.State);
+        Assert.Equal((WorkState.Stale, ReasonCode.SourceDisconnected), (view.State, view.Reason));
+        Assert.Equal(polledAt, view.LastConfirmedAt);
     }
 
     [Fact]

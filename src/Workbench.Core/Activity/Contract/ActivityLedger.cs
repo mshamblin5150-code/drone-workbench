@@ -214,7 +214,7 @@ public sealed class ActivityLedger
     {
         ArgumentNullException.ThrowIfNull(key);
         return this.sources.TryGetValue(key.Source, out var partition) && partition.Work.TryGetValue(key, out var record)
-            ? this.Project(record, this.clock.GetUtcNow())
+            ? this.Project(partition, record, this.clock.GetUtcNow())
             : null;
     }
 
@@ -222,7 +222,7 @@ public sealed class ActivityLedger
     {
         ArgumentNullException.ThrowIfNull(source);
         var now = this.clock.GetUtcNow();
-        return this.sources.TryGetValue(source, out var partition) ? [.. partition.Work.Values.Select(record => this.Project(record, now))] : [];
+        return this.sources.TryGetValue(source, out var partition) ? [.. partition.Work.Values.Select(record => this.Project(partition, record, now))] : [];
     }
 
     public SourceView? Source(SourceInstanceId source)
@@ -233,8 +233,7 @@ public sealed class ActivityLedger
             return null;
         }
 
-        var silent = health == SourceState.Connected && this.clock.GetUtcNow() - partition.LastSucceededAt > this.settings.StaleAfter;
-        return silent
+        return this.SilentSince(partition, this.clock.GetUtcNow()) is not null
             ? new SourceView(source, partition.Generation, SourceState.Disconnected, DisconnectReason.Timeout, partition.LastSucceededAt)
             : new SourceView(source, partition.Generation, health, partition.Disconnect, partition.LastSucceededAt);
     }
@@ -279,7 +278,6 @@ public sealed class ActivityLedger
                     break;
                 case HookEvent.NotificationEvent notification:
                     record.WaitingFor = notification.WaitingFor;
-                    record.LastConfirmedAt = delivery.ObservedAt;
                     if (Liveness.ClassifyHook(notification.WaitingFor) is { } signal)
                     {
                         Transit(record, signal, delivery.ObservedAt, Channel.Hook, delivery.Generation);
@@ -365,7 +363,7 @@ public sealed class ActivityLedger
             return Refuse(RefusalReason.UnknownTarget);
         }
 
-        var view = this.Project(record, now);
+        var view = this.Project(partition, record, now);
         if (!RouteFits(requested.Action, view))
         {
             return Refuse(RefusalReason.NoSupportedRoute);
@@ -403,13 +401,22 @@ public sealed class ActivityLedger
         return Refuse(capability is null ? RefusalReason.NoSupportedRoute : RefusalFor(capability.Disabled));
     }
 
-    private WorkView Project(WorkRecord record, DateTimeOffset now)
+    private WorkView Project(SourcePartition partition, WorkRecord record, DateTimeOffset now)
     {
         var stored = record.State ?? throw new UnreachableException();
-        return now - record.LastConfirmedAt > this.settings.StaleAfter && Liveness.Step(stored, Signal.ConfirmationExpired) is { } stale
-            ? new WorkView(record, stale.To, stale.Reason, record.LastConfirmedAt + this.settings.StaleAfter)
+        var (expiredAt, signal) = this.SilentSince(partition, now) is { } silentSince
+            ? (silentSince, Signal.SourceDisconnected)
+            : (this.ExpiredAt(record.LastConfirmedAt, now), Signal.ConfirmationExpired);
+        return expiredAt is { } since && Liveness.Step(stored, signal) is { } stale
+            ? new WorkView(record, stale.To, stale.Reason, since)
             : new WorkView(record, stored, record.Reason, record.StateSince);
     }
+
+    private DateTimeOffset? SilentSince(SourcePartition partition, DateTimeOffset now) =>
+        partition.Health == SourceState.Connected ? this.ExpiredAt(partition.LastSucceededAt, now) : null;
+
+    private DateTimeOffset? ExpiredAt(DateTimeOffset? confirmedAt, DateTimeOffset now) =>
+        confirmedAt + this.settings.StaleAfter is { } expiry && now > expiry ? expiry : null;
 
     private SourcePartition PartitionOf(SourceInstanceId source)
     {
