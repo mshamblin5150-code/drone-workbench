@@ -20,6 +20,8 @@ The proposed program runs `pstack/skills/poteto-mode/playbooks/autopilot-stack.m
 
 Tests alone are not sufficient verification. A PR is verified only when its unit, live, and perf boxes are all checked.
 
+Every **Verify, perf** box sets its absolute budgets by one rule. Each budget is twice the metric's measured upper confidence bound. A share of the 5-second update target caps it, for example all per-poll processing under 1% of the poll interval. A budget that cannot fit under its cap returns to the owner. Otherwise the PR records the budget in [issue 24](https://github.com/mshamblin5150-code/drone-workbench/issues/24) with no approval stop. In-process probes use BenchmarkDotNet once its own dependency PR pins it in `docs/toolchain/baseline.json`.
+
 Resolve every `pstack/...` path in this plan against `.local/engineering-stack/sources/pstack/` at the locked commit, as `docs/agents/engineering-stack.md` requires. In Codex, open the `dwb-pstack-` and `dwb-kit-` entrypoints listed in `docs/toolchain/engineering-catalog.json`.
 
 ## Program checklist
@@ -109,6 +111,9 @@ Each live lane runs in its own local worktree at the PR head. Cursor cloud VMs a
 - [ ] Encode the source contract as types. `WorkState` transitions live in one reducer table in `Liveness.cs`, not in adapter conditionals. `ControlReceipt` allows only the stage edges in the contract.
 - [ ] `ControlReference` makes `ConnectionScoped` references unusable after the connection generation changes, by construction.
 - [ ] A batch from an older `SourceGeneration` is a no-op in the reducer.
+- [ ] `WorkState.Lost` is terminal and distinct from `Ended`. The reducer enters it only by the contract's settling-window rule, and a listed reappearance starts a new life under the same `WorkKey`.
+- [ ] `Entrypoint` includes `WorkbenchHosted`. Ownership of a Codex command binds to `WorkbenchHosted`, never to `Headless`.
+- [ ] Each `SafeSourceBatch` carries its scheduled poll interval. Work goes `Stale` and the source goes `Disconnected` after `MissedPollLimit` missed expected polls. No single `StaleAfter` threshold exists.
 - [ ] Use an injected `TimeProvider` everywhere. No `DateTime.Now`.
 
 **You see.**
@@ -117,7 +122,7 @@ Each live lane runs in its own local worktree at the PR head. Cursor cloud VMs a
 
 **Verify, unit.** Tests alone are not sufficient verification. A PR is verified only when its unit, live, and perf boxes are all checked.
 
-- [ ] `LivenessReducerTests` covers LV-2, LV-4, LV-5, LV-6 and ID-4 with fixture inputs. Run `dotnet test --filter LivenessReducerTests`.
+- [ ] `LivenessReducerTests` covers LV-2, LV-4, LV-5, LV-6, LV-8, LV-9 and ID-4 with fixture inputs. Run `dotnet test --filter LivenessReducerTests`.
 - [ ] `ControlReceiptTests` covers CT-4, CX-2 and CX-3. Run `dotnet test --filter ControlReceiptTests`.
 - [ ] `CapabilityReportTests` covers CX-1, CX-4 and the version-change rule. Run `dotnet test --filter CapabilityReportTests`.
 - [ ] `CanaryScannerTests` proves the scanner finds planted fixture and runtime values and never writes them. Run `dotnet test --filter CanaryScannerTests`.
@@ -129,7 +134,7 @@ Each live lane runs in its own local worktree at the PR head. Cursor cloud VMs a
 - [ ] Lane 3. Replay an older-generation batch after a newer one. Save `ca1-late-batch.txt`. Pass when the projection is unchanged.
 - [ ] Lane 4. Replay a source disconnect with three live work items. Save `ca1-disconnect.txt`. Pass when all three read `Stale` with `SourceDisconnected` and none reads `Ended`.
 - [ ] Lane 5. Replay a PID reused with a new creation time. Save `ca1-pid-reuse.txt`. Pass when the old `WorkKey` stays `Ended` and gains no association.
-- [ ] Lane 6. Replay a duplicate `RequestId`. Save `ca1-duplicate-request.txt`. Pass when one receipt and one dispatch exist.
+- [ ] Lane 6. Replay a duplicate `RequestId`. Save `ca1-duplicate-request.txt`. Pass when one receipt exists and the repeat adds no dispatch.
 - [ ] Lane 7. Replay a Codex reconnect with a live command reference. Save `ca1-codex-reconnect.txt`. Pass when the reference is rejected as stale.
 - [ ] Lane 8. Replay Claude and Codex repeat-control fixtures. Save `ca1-repeat-control.txt`. Pass when a Workbench stopped-target request ends `NoActionNeeded(AlreadyStopped)` with zero dispatch, while provider-only repeat-control fixtures retain native Claude acknowledgement and Codex rejection without attributing a Workbench action.
 - [ ] Lane 9. Build a capability report for a version change. Save `ca1-version-change.txt`. Pass when every control reads `Enabled=false` with `VersionChanged` and observation stays enabled.
@@ -138,9 +143,9 @@ Each live lane runs in its own local worktree at the PR head. Cursor cloud VMs a
 **Verify, perf.** Tests alone are not sufficient verification. A PR is verified only when its unit, live, and perf boxes are all checked.
 
 - [ ] Metric. Batch-to-projection-ready latency, plus time and allocations to apply one batch of 200 work items to a projection holding 10,000 items.
-- [ ] Probe. A BenchmarkDotNet case in `tests/Workbench.Core.Tests/Activity/Contract/ReducerBenchmarks.cs`, run three times interleaved with a 100,000-item projection.
+- [ ] Probe. A BenchmarkDotNet case in `tests/Workbench.Core.Tests/Activity/Contract/ReducerBenchmarks.cs`, run three times interleaved with a 100,000-item projection. Until BenchmarkDotNet is pinned, the probe uses `Stopwatch` and allocation counters. It moves onto BenchmarkDotNet before acceptance.
 - [ ] Baseline. Trunk has no reducer. Record that, then record the head value at 10,000 items first.
-- [ ] Rule. Fail when the 100,000-item time exceeds three times the 10,000-item time, which shows growth with history size. Before this box passes or CA1 becomes merge-ready, select and record measured numeric absolute budgets in issue 24 for reducer time and allocations at both sizes, plus batch-to-projection-ready latency. The scaling ratio is supplementary. Missing budgets block acceptance.
+- [ ] Rule. Fail when the 100,000-item time exceeds three times the 10,000-item time, which shows growth with history size. Before this box passes or CA1 becomes merge-ready, set budgets by the budget rule in [How to read this](#how-to-read-this) and record them in issue 24 for reducer time and allocations at both sizes, plus batch-to-projection-ready latency. The scaling ratio is supplementary. Missing budgets block acceptance.
 
 **Review gate.** None. CA1 is not review-gated.
 
@@ -196,7 +201,7 @@ Each live lane runs in its own local worktree at the PR head. Cursor cloud VMs a
 - [ ] Metric. Parse time, allocations and input-to-safe-batch latency for a 50-entry agent view.
 - [ ] Probe. A BenchmarkDotNet case in `AgentViewParserBenchmarks.cs`, interleaved with a 500-entry input.
 - [ ] Baseline. Trunk has no parser. Record that, then record the 50-entry head value first.
-- [ ] Rule. Fail when allocations per entry at 500 exceed allocations per entry at 50 by more than 50 percent. Before this box passes or CA2 becomes merge-ready, select and record measured numeric absolute budgets in issue 24 for parse time and allocations at both sizes, plus input-to-safe-batch latency. The allocation ratio is supplementary. Missing budgets block acceptance.
+- [ ] Rule. Fail when allocations per entry at 500 exceed allocations per entry at 50 by more than 50 percent. Before this box passes or CA2 becomes merge-ready, set budgets by the budget rule in [How to read this](#how-to-read-this) and record them in issue 24 for parse time and allocations at both sizes, plus input-to-safe-batch latency. The allocation ratio is supplementary. Missing budgets block acceptance.
 
 **Review gate.** None. CA2 is not review-gated.
 
@@ -257,7 +262,7 @@ Each live lane runs in its own local worktree at the PR head. Cursor cloud VMs a
 - [ ] Metric. Wall time, CPU time and peak working set of one poll cycle, including the `claude agents` child process and process identity reads, plus source-change-to-projection latency.
 - [ ] Probe. Run 30 poll cycles with 0, 3 and 10 synthetic background sessions, interleaved, and record each value.
 - [ ] Baseline. Trunk has no poller. Record that, then record the 0-session head value first.
-- [ ] Rule. Record the poll interval used for the run in the capture. It is a run parameter, not a budget. Fail when any poll cycle takes longer than that interval or when CPU time grows faster than linearly in session count. Before this box passes or CA3 becomes merge-ready, select and record measured numeric absolute budgets in issue 24 for poll wall time, CPU and peak working set, plus source-change-to-projection latency. The interval and scaling rules are supplementary. Missing budgets block acceptance.
+- [ ] Rule. Record the poll interval used for the run in the capture. It is a run parameter, not a budget. Fail when any poll cycle takes longer than that interval or when CPU time grows faster than linearly in session count. Before this box passes or CA3 becomes merge-ready, set budgets by the budget rule in [How to read this](#how-to-read-this) and record them in issue 24 for poll wall time, CPU and peak working set, plus source-change-to-projection latency. The interval and scaling rules are supplementary. Missing budgets block acceptance.
 
 **Review gate.** None. CA3 is not review-gated.
 
@@ -315,7 +320,7 @@ Each live lane runs in its own local worktree at the PR head. Cursor cloud VMs a
 - [ ] Metric. Hook process wall time, CPU and peak working set with the host present and absent, plus event-to-host-visible-state latency when present.
 - [ ] Probe. Run the verb 50 times per case with the `SessionStart` fixture, interleaved.
 - [ ] Baseline. Trunk has no verb. Record that, then record the host-present value first.
-- [ ] Rule. Before this box passes or CA4 becomes merge-ready, select and record measured numeric absolute budgets in issue 24 for hook wall time, CPU and peak working set in both cases, plus event-to-host-visible-state latency. Missing budgets block acceptance. Record a numeric send timeout within those budgets. An unspecified timeout plus start time is not an acceptance gate.
+- [ ] Rule. Before this box passes or CA4 becomes merge-ready, set budgets by the budget rule in [How to read this](#how-to-read-this) and record them in issue 24 for hook wall time, CPU and peak working set in both cases, plus event-to-host-visible-state latency. Missing budgets block acceptance. Record a numeric send timeout within those budgets. An unspecified timeout plus start time is not an acceptance gate.
 
 **Review gate.** None. CA4 is not review-gated.
 
@@ -360,7 +365,7 @@ Each live lane runs in its own local worktree at the PR head. Cursor cloud VMs a
 - [ ] Lane 2. Request a stop on an idle synthetic session as the operator caller (CT-1). Save `ca5-stop-disabled.txt`. Pass when `Refused(NoConditionalDispatch)` occurs, zero commands dispatch and its incarnation stays alive.
 - [ ] Lane 3. Start two sessions and request one stop (CT-2). Run the conditional-fixture exact-target replay too. Save `ca5-exact-target.txt`. Pass when the current CLI dispatches nothing and the fake cannot affect a replacement or the other work.
 - [ ] Lane 4. Prepare a stopped synthetic target with the native fixture, then submit a new request (CT-3). Save `ca5-already-stopped.txt`. Pass when fresh stopped evidence yields only terminal `NoActionNeeded(AlreadyStopped)` with zero dispatch and no Workbench-stop attribution.
-- [ ] Lane 5. Submit the same `RequestId` twice for refusal and no-op cases (CT-4). Save `ca5-same-request.txt`. Pass when each returns its existing receipt and total dispatch remains zero.
+- [ ] Lane 5. Submit the same `RequestId` twice for refusal and no-op cases (CT-4). Save `ca5-same-request.txt`. Pass when each returns its existing receipt and the repeat adds no dispatch.
 - [ ] Lane 6. Replay a changed incarnation and a changed required state at the fake route's atomic dispatch boundary (CT-10). Save `ca5-incarnation.txt`. Pass when neither causes a side effect. Also verify current-CLI requests remain disabled.
 - [ ] Lane 7. Request a stop on a real desktop session through `IActivity.RequestControlAsync` as the operator caller (CT-6). Save `ca5-desktop-refused.txt`. Pass when `Refused(NoSupportedRoute)` occurs and no control child process starts.
 - [ ] Lane 8. Request a stop by partial name, as a drone caller, and without ownership evidence (CT-7, CT-11, CT-12). Save `ca5-gates.txt`. Pass when each refuses before dispatch.
@@ -372,7 +377,7 @@ Each live lane runs in its own local worktree at the PR head. Cursor cloud VMs a
 - [ ] Metric. Gate processing latency, CPU time and allocations for refusals and already-stopped no-ops, plus request-to-visible-receipt latency. Measure fake conditional reconciliation separately as contract timing only.
 - [ ] Probe. Run 50 requests per refusal and no-op case, interleaved with equal observation-only cycles and fixture reconciliation cases. Run no real stops.
 - [ ] Baseline. Trunk has no gate. Record that, then record observation-only CPU and memory first. Do not compare fake timing with native stop research.
-- [ ] Rule. Before this box passes or CA5 becomes merge-ready, select and record measured numeric absolute budgets in issue 24 for gate latency, CPU, allocations and request-to-visible-receipt latency. Missing budgets block acceptance. Fixture reconciliation needs its own numeric timing budget and never proves provider performance. An actual conditional source route remains blocked until supported and conformed, with measured dispatch-to-visible-outcome budgets set before its performance acceptance. An unspecified timeout is not a budget.
+- [ ] Rule. Before this box passes or CA5 becomes merge-ready, set budgets by the budget rule in [How to read this](#how-to-read-this) and record them in issue 24 for gate latency, CPU, allocations and request-to-visible-receipt latency. Missing budgets block acceptance. Fixture reconciliation needs its own numeric timing budget and never proves provider performance. An actual conditional source route remains blocked until supported and conformed, with measured dispatch-to-visible-outcome budgets set before its performance acceptance. An unspecified timeout is not a budget.
 
 **Review gate.** None. CA5 is not review-gated. The dashboard control is exposed in S4 only after its dispatch requirements are met.
 
@@ -429,7 +434,7 @@ Each live lane runs in its own local worktree at the PR head. Cursor cloud VMs a
 - [ ] Metric. Coverage page render time, update-to-visible-state latency, host CPU time and peak working set with 10 synthetic sessions.
 - [ ] Probe. Load the page 20 times at trunk and head, interleaved, through `control-ui`.
 - [ ] Baseline. Record the trunk Overview render time first.
-- [ ] Rule. Fail when the head Overview render time exceeds trunk by more than 20 percent. Before this box passes or CA6 becomes merge-ready, select and record measured numeric absolute budgets in issue 24 for added Coverage rendering, update-to-visible-state latency, host CPU and peak working set. The Overview ratio is supplementary. Missing budgets block acceptance.
+- [ ] Rule. Fail when the head Overview render time exceeds trunk by more than 20 percent. Before this box passes or CA6 becomes merge-ready, set budgets by the budget rule in [How to read this](#how-to-read-this) and record them in issue 24 for added Coverage rendering, update-to-visible-state latency, host CPU and peak working set. The Overview ratio is supplementary. Missing budgets block acceptance.
 
 **Review gate.** The operator reviews before merge.
 

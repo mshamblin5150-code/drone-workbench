@@ -37,13 +37,24 @@ sign-in or a user resume. It is distinct from a monitoring stop.
 How long ago a view's information was last confirmed by an observation.
 _Avoid_: "live" as a promise of freshness
 
+**Lost**:
+Work that disappeared from its source without any evidence of how it ended. It
+is no longer tracked and is never shown as ended or successful.
+_Avoid_: ended, finished, gone for this outcome
+
 **Coverage**:
 The declared scope a source can report, including unavailable, unsupported or
 unverified parts. Missing coverage does not establish that no work exists.
 
+**Work item**:
+Anything a source reports with its own identity, such as a session, turn,
+subagent, thread, command or job. Each kind is counted separately.
+_Avoid_: job, task as the general term
+
 **Job**:
-A tracked piece of work with its own identity and outcomes. Its relationship to
-conversations, delegated agents and processes is separately evidenced.
+A piece of work Workbench itself tracks, with its own identity and outcomes. A
+job is one kind of work item. Its relationship to conversations, delegated
+agents and processes is separately evidenced.
 
 **Ownership**:
 Evidence establishing responsibility for a specific workload or artifact.

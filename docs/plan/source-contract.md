@@ -37,11 +37,10 @@ cannot mint a `VerifiedControl`, and a batch cannot carry one.
 
 ## Terms
 
-This file uses "work item" for anything a source reports with its own identity:
-a session, turn, subagent, thread, command or Workbench job. A **Job** in the
-[glossary](../../GLOSSARY.md) is one kind of work item, `WorkKind.Job`. Views
-count each kind separately. Adopting "work item" in the glossary is a candidate
-update for the owner, not part of this proposal.
+This file uses **work item** as the [glossary](../../GLOSSARY.md) defines it:
+anything a source reports with its own identity, such as a session, turn,
+subagent, thread, command or Workbench job. A **Job** is one kind of work item,
+`WorkKind.Job`. Views count each kind separately.
 
 ## Identity
 
@@ -54,7 +53,7 @@ update for the owner, not part of this proposal.
 | `ControlReference` | Source-local handle used to send a control | Carries `ReferenceScope`, either `SourceStable` or `ConnectionScoped(connectionGeneration)`. Claude short `id` is `SourceStable` and must equal the leading characters of the observed `sessionId`. A Codex `command/exec` `processId` is `ConnectionScoped` and becomes invalid on reconnect |
 | `ProcessIncarnation` | One operating-system process lifetime | `(pid, creationTimeUtc)`. A PID alone never identifies work. A new incarnation for the same `WorkKey` is a restart, not new work |
 | `Association` | Link between a `WorkKey` and a `ProcessIncarnation`, project or publication | Carries its evidence (`AgentViewPid`, `ParentProcessChain`, `HookSession`, `PublisherClaim`). Association is never ownership |
-| `OwnershipEvidence` | Why a source instance is responsible for a work item | For a Claude background session, the agent view of the current Windows user's configuration root lists it as `kind=background` with a short `id`, and its incarnation runs as the same Windows user. Association alone never sets it. A stopped-target no-op retains validated same-user ownership evidence from its prior incarnation, bound to this exact work and source, and requires a fresh stopped observation in the current generation. Missing ownership evidence refuses the no-op too |
+| `OwnershipEvidence` | Why a source instance is responsible for a work item | For a Claude background session, the agent view of the current Windows user's configuration root lists it as `kind=background` with a short `id`, and its incarnation runs as the same Windows user. For a Codex command, the command runs on a server Workbench started, with entrypoint `WorkbenchHosted`. Association alone never sets it. A stopped-target no-op retains validated same-user ownership evidence from its prior incarnation, bound to this exact work and source, and requires a fresh stopped observation in the current generation. Missing ownership evidence refuses the no-op too |
 | `ProjectRef` | Workbench project identity | Resolved from a source working directory through the private local mapping, then the directory is discarded. Unresolved work is `Unassigned`, not dropped |
 
 A Claude interactive session and a desktop-owned session have no short `id`.
@@ -72,11 +71,18 @@ Every fact carries Workbench time and, when the source provides it, source time.
 | `LastConfirmedAt` | Latest `ObservedAt` that confirmed the work is present | Drives `Stale` |
 | `StateSince` | First `ObservedAt` of the current projected state | Display and dwell checks |
 
-Stale thresholds, poll intervals and startup or restart windows come from
-measured settings under
+Poll intervals, the missed-poll limit, startup and restart windows and the
+settling window for `Lost` come from measured settings under
 [Measure and record collector budgets](https://github.com/mshamblin5150-code/drone-workbench/issues/24).
-This contract names them as `Settings.PollInterval`, `Settings.StaleAfter`,
-`Settings.StartingWindow` and `Settings.RestartWindow` and fixes no numbers.
+This contract names them as `Settings.PollInterval`, `Settings.MissedPollLimit`,
+`Settings.StartingWindow`, `Settings.RestartWindow` and
+`Settings.LostSettlingWindow` and fixes no numbers.
+
+Staleness counts missed polls, not elapsed time against one threshold. Each
+`SafeSourceBatch` carries the scheduled interval of the poll that produced it.
+An expected poll is missed when one scheduled interval passes with no
+successful poll. Work goes `Stale` and its source goes `Disconnected` after
+`MissedPollLimit` missed expected polls.
 
 ## Channels
 
@@ -102,12 +108,23 @@ it.
 | `Busy` | `status=busy` with a live incarnation | Hook events alone |
 | `Waiting` | `status=waiting`, or a `Notification` hook with `permission_prompt`, `idle_prompt`, `agent_needs_input` or `elicitation_dialog` | Missing data |
 | `Idle` | `status=idle` with a live incarnation | Missing `status` |
-| `Restarting` | A previously live entry loses `pid` and `status` while still listed, or the incarnation exits while the source still lists the work | Absence from the list |
+| `Restarting` | A previously live entry loses `pid` and `status` while still listed, or the incarnation exits while the source still lists the work and no `SessionEnd` preceded the exit | Absence from the list |
 | `Stopped` | Background `state=stopped`, or a verified control outcome | Idempotent stop acknowledgement alone |
-| `Ended` | Interactive entry gone and its last incarnation exited, or `SessionEnd` followed by incarnation exit | Absence alone, or `SessionEnd` alone |
-| `Stale` | No confirmation for `StaleAfter`, or the source became `Disconnected` | Not applicable |
-| `Unknown` | Listed entry with contradictory or unrecognized fields, or incarnation alive but entry missing | Not applicable |
+| `Ended` | Interactive entry gone and its last incarnation exited (`ProcessExited`). `SessionEnd` followed by incarnation exit, even while still listed (`SessionEndedThenExited`). A `Stopped` entry removed from the list while a complete process inventory shows no process (`RemovedAfterStop`) | Absence alone, or `SessionEnd` alone |
+| `Lost` | Unlisted for the whole `LostSettlingWindow`, while the source stayed `Connected`, every process inventory was complete and no matching process existed | Absence during a partial inventory or a missed poll |
+| `Stale` | The source missed `MissedPollLimit` expected polls, or became `Disconnected` or `Unavailable` | Not applicable |
+| `Unknown` | Listed entry with contradictory or unrecognized fields, incarnation alive but entry missing, `Starting` past `StartingWindow` (`StartupOverdue`), or `Restarting` past `RestartWindow` (`RestartOverdue`) | Not applicable |
 | `NotLoaded` | Codex stored thread not loaded in the live owner | Claude sources |
+
+`Ended` and `Lost` are terminal. `Lost` means the work disappeared with no
+evidence of how it ended, so views never show it as `Ended` or successful. If a
+`Lost` or `Ended` work item is listed again, including a respawn after
+`SessionEndedThenExited`, it starts a new life under the same `WorkKey`. The new
+life starts with a fresh first-seen time and carries no `SessionEnd` evidence
+or ownership evidence from the old one.
+
+`RestartOverdue` is sticky. A later restart gap keeps the work `Unknown` with
+`RestartOverdue` until the entry lists a live incarnation again.
 
 A source `state` value is recorded but does not override the rules above. The
 Claude restart experiment showed `state=blocked` persisting while the process
@@ -117,9 +134,9 @@ was gone, so a raw `state` cannot keep work `Idle`, `Busy` or `Waiting`.
 
 | State | Meaning |
 | --- | --- |
-| `Connected` | Last poll or handshake succeeded within `PollInterval` plus tolerance |
-| `Disconnected` | Last attempt failed. `ReasonCode` is `Timeout`, `NonZeroExit`, `MalformedOutput`, `OutputTooLarge`, `TransportError` or `SchemaDrift`. Work from this source becomes `Stale` with reason `SourceDisconnected` |
-| `Unavailable` | Executable or endpoint is absent, such as no Claude CLI on `PATH` or no exposed Codex desktop endpoint |
+| `Connected` | Fewer than `MissedPollLimit` expected polls missed since the last successful poll or handshake |
+| `Disconnected` | `MissedPollLimit` expected polls missed. `ReasonCode` is the last failed attempt's reason: `Timeout`, `NonZeroExit`, `MalformedOutput`, `OutputTooLarge`, `TransportError` or `SchemaDrift`. Work from this source becomes `Stale` with reason `SourceDisconnected` |
+| `Unavailable` | Executable or endpoint is absent, such as no Claude CLI on `PATH` or no exposed Codex desktop endpoint. Work from this source becomes `Stale` with reason `SourceUnavailable` |
 | `Unsupported` | Workbench has no adapter for this entrypoint |
 
 ## Coverage and capability report
@@ -134,7 +151,7 @@ record CapabilityReport(
     DateTimeOffset ObservedAt);
 
 record EntrypointCoverage(
-    Entrypoint Entrypoint,              // Desktop, InteractiveCli, Background, Headless, Ide, Cloud, Unknown
+    Entrypoint Entrypoint,              // Desktop, InteractiveCli, Background, Headless, WorkbenchHosted, Ide, Cloud, Unknown
     CoverageLevel Observation,          // Verified, Observed, Partial, Unverified, Unsupported, Unreachable
     IReadOnlyList<Channel> Channels,
     IReadOnlyList<WorkKind> WorkKinds,
@@ -156,6 +173,8 @@ Rules:
   owner.
 - `CoverageLevel.Unreachable` describes an entrypoint. `SourceState.Unavailable`
   describes a source instance. They are different fields.
+- `WorkbenchHosted` covers work on a Codex server that Workbench started.
+  `Headless` stays reserved for work the user runs, such as `claude -p`.
 - A source version change sets every control to `Enabled=false` with
   `DisabledReason.VersionChanged` until a supported conditional route and its
   conformance evidence are re-established on the new version. A source restart invalidates generation-bound
@@ -175,7 +194,7 @@ Rules:
 | Action | Source | Target | Current evidence |
 | --- | --- | --- | --- |
 | `StopBackgroundSession` | Claude | `Session` with entrypoint `Background`, a `SourceStable` reference and `OwnershipEvidence` | Native session-scoped stop observed in ticket 7 on CLI 2.1.312. Workbench `Enabled=false`, `NoConditionalDispatch`, with no dispatch conditions in `VerifiedFor`. No supported atomic route established |
-| `TerminateOwnedCommand` | Codex | `Command` on a Workbench-owned server | Observed in ticket 7 for a synthetic sleeper on CLI 0.167.0-alpha.4.1. No Workbench conformance yet |
+| `TerminateOwnedCommand` | Codex | `Command` on a Workbench-owned server, entrypoint `WorkbenchHosted` | Observed in ticket 7 for a synthetic sleeper on CLI 0.167.0-alpha.4.1. No Workbench conformance yet |
 | `InterruptTurn` | Codex | `Turn` | Unverified. Disabled |
 
 No action targets an interactive or desktop-owned Claude session, a Codex
@@ -229,7 +248,7 @@ never implies the source outcome.
 | Stage | Meaning |
 | --- | --- |
 | `Requested` | A caller asked. Carries a client `RequestId` and exact `WorkKey`. A dispatch request also carries the `ProcessIncarnation` the caller saw. A different current incarnation gives `Refused(IncarnationChanged)` |
-| `Refused` | The gate refused before dispatch. Carries a `RefusalReason` such as `NoSupportedRoute`, `NoConditionalDispatch`, `NoOwnershipEvidence`, `TargetConditionUnverified`, `StaleTarget`, `IncarnationChanged`, `CallerScope` or `VersionChanged`. Nothing was sent to the source |
+| `Refused` | The gate refused before dispatch. Carries a `RefusalReason` such as `NoSupportedRoute`, `NoConditionalDispatch`, `NoOwnershipEvidence`, `TargetConditionUnverified`, `StaleTarget`, `IncarnationChanged`, `CallerScope`, `VersionChanged` or `RequestIdConflict`. Nothing was sent to the source |
 | `NoActionNeeded` | `AlreadyStopped` is a fresh validated observation for an authenticated operator and exact owned `WorkKey`, with no current live incarnation. No live handle is required. No source command runs and no later receipt stage follows |
 | `Accepted` | A supported conditional route exists. Activity rechecked identity, ownership evidence, freshness, capability, target condition, reference scope and caller scope, and recorded the target's prior state and incarnation |
 | `Dispatched` | The adapter started the source command or request |
@@ -243,7 +262,9 @@ never implies the source outcome.
 ### Retry and attribution
 
 - For an authenticated caller authorized to read the receipt, the same `RequestId`
-  returns the existing receipt. It never dispatches again.
+  returns the existing receipt. A repeat adds no dispatch.
+- A `RequestId` reused for a different action or target is `Refused` with
+  `RequestIdConflict`. Nothing is sent to the source.
 - After `DeliveryUnknown`, Activity runs `ReconcileAsync` first. It dispatches
   a new attempt only on a new `RequestId`, and only when the target incarnation
   still matches the recorded one. An attached or respawned session is a new
@@ -350,7 +371,7 @@ publication rules.
 | Codex finding | Contract expression |
 | --- | --- |
 | Desktop app-server runs over private stdio with no exposed endpoint | `Entrypoint.Desktop`, `Observation=Unreachable`, `GapReason=NoSupportedEndpoint`. `ProcessScan` still shows the app-server process |
-| Workbench-owned or explicitly exposed server over WebSocket on a Unix socket | A separate `SourceInstanceId` from the desktop owner, even with the same `CODEX_HOME`. `Observation=Partial` until active-work and reconnect evidence exists |
+| Workbench-owned or explicitly exposed server over WebSocket on a Unix socket | A separate `SourceInstanceId` from the desktop owner, even with the same `CODEX_HOME`. A server Workbench started reports `Entrypoint.WorkbenchHosted`. `Observation=Partial` until active-work and reconnect evidence exists |
 | `command/exec` `processId` is connection scoped | `Command` `WorkKey` and `ControlReference` both carry the connection generation. Reconnect invalidates both |
 | Repeat terminate rejected | `SourceRejected(NoActiveCommand)` |
 | Loaded versus stored threads | `NotLoaded` work state |
