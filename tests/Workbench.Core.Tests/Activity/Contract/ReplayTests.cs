@@ -222,10 +222,10 @@ public sealed class ReplayTests(ITestOutputHelper output)
     public void Lane9_VersionChange()
     {
         var scenario = new LedgerScenario(Claude);
-        var before = scenario.Ledger.Admit(CapabilityReportTests.ClaudeReport(scenario.Generation, "2.1.312"));
+        var before = scenario.Ledger.Admit(CapabilityReportTests.ClaudeReport(scenario.Generation, "2.1.312"))!;
         scenario.Generation = scenario.Ledger.StartGeneration(Claude);
 
-        var after = scenario.Ledger.Admit(CapabilityReportTests.ClaudeReport(scenario.Generation, "2.1.323"));
+        var after = scenario.Ledger.Admit(CapabilityReportTests.ClaudeReport(scenario.Generation, "2.1.323"))!;
         var live = Process(101);
         var applied = scenario.Poll([ListedWork.Entry(Session(SessionA), Entrypoint.Background, ListedStatus.Idle, incarnation: live)], [live]);
 
@@ -246,7 +246,7 @@ public sealed class ReplayTests(ITestOutputHelper output)
     {
         var ledger = new ActivityLedger(Settings, Clock());
 
-        var desktop = Assert.Single(ledger.Admit(CapabilityReportTests.CodexDesktopReport(ledger.StartGeneration(CodexDesktop))).Entrypoints);
+        var desktop = Assert.Single(ledger.Admit(CapabilityReportTests.CodexDesktopReport(ledger.StartGeneration(CodexDesktop)))!.Entrypoints);
 
         output.WriteLine($"{desktop.Entrypoint}: {desktop.Observation}/{desktop.Gap}, unlisted processes {desktop.UnlistedProcessCount}");
         Assert.Equal((CoverageLevel.Unreachable, GapReason.NoSupportedEndpoint), (desktop.Observation, desktop.Gap));

@@ -153,7 +153,7 @@ public sealed class ActivityLedger
         return ApplyOutcome.Applied;
     }
 
-    public CapabilityReport Admit(CapabilityReport reported)
+    public CapabilityReport? Admit(CapabilityReport reported)
     {
         ArgumentNullException.ThrowIfNull(reported);
         var partition = this.PartitionOf(reported.Source);
@@ -162,9 +162,9 @@ public sealed class ActivityLedger
             throw new ArgumentException("The report carries a generation this ledger never issued.", nameof(reported));
         }
 
-        if (partition.Admitted is { } admitted && reported.Generation < partition.Generation)
+        if (reported.Generation < partition.Generation)
         {
-            return admitted;
+            return partition.Admitted;
         }
 
         if (reported.SourceVersion is { } version)

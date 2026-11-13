@@ -11,7 +11,7 @@ public sealed class CapabilityReportTests
     {
         var ledger = new ActivityLedger(Settings, Clock());
 
-        var admitted = ledger.Admit(CodexDesktopReport(ledger.StartGeneration(CodexDesktop)));
+        var admitted = ledger.Admit(CodexDesktopReport(ledger.StartGeneration(CodexDesktop)))!;
 
         var desktop = Assert.Single(admitted.Entrypoints);
         Assert.Equal(Entrypoint.Desktop, desktop.Entrypoint);
@@ -52,11 +52,26 @@ public sealed class CapabilityReportTests
 
         var g2 = ledger.StartGeneration(Claude);
         var changed = ledger.Admit(ClaudeReport(g2, "2.1.323"));
-        var late = ledger.Admit(ClaudeReport(g1, "2.1.312"));
+        var late = ledger.Admit(ClaudeReport(g1, "2.1.312"))!;
 
         Assert.Same(changed, late);
         Assert.Equal("2.1.323", late.SourceVersion);
         Assert.All(late.Entrypoints.SelectMany(e => e.Controls), c => Assert.True(c.Disabled.HasFlag(DisabledReason.VersionChanged)));
+    }
+
+    [Fact]
+    public void AReportFromAnOlderGenerationIsNeverAdmittedEvenBeforeAnyReportWas()
+    {
+        var ledger = new ActivityLedger(Settings, Clock());
+        var g1 = ledger.StartGeneration(Claude);
+        ledger.StartGeneration(Claude);
+        var g3 = ledger.StartGeneration(Claude);
+
+        Assert.Null(ledger.Admit(ClaudeReport(g1, "1.0.0")));
+
+        var current = ledger.Admit(ClaudeReport(g3, "2.0.0"))!;
+        Assert.Equal((g3, "2.0.0"), (current.Generation, current.SourceVersion));
+        Assert.All(current.Entrypoints.SelectMany(e => e.Controls), c => Assert.False(c.Disabled.HasFlag(DisabledReason.VersionChanged)));
     }
 
     [Fact]
@@ -65,11 +80,11 @@ public sealed class CapabilityReportTests
         var clock = Clock();
         var ledger = new ActivityLedger(Settings, clock);
         var generation = ledger.StartGeneration(Claude);
-        var before = ledger.Admit(ClaudeReport(generation, "2.1.312"));
+        var before = ledger.Admit(ClaudeReport(generation, "2.1.312"))!;
         Assert.All(before.Entrypoints.SelectMany(e => e.Controls), c => Assert.False(c.Disabled.HasFlag(DisabledReason.VersionChanged)));
 
-        var after = ledger.Admit(ClaudeReport(generation, "2.1.323"));
-        var again = ledger.Admit(ClaudeReport(generation, "2.1.323"));
+        var after = ledger.Admit(ClaudeReport(generation, "2.1.323"))!;
+        var again = ledger.Admit(ClaudeReport(generation, "2.1.323"))!;
 
         var controls = after.Entrypoints.SelectMany(e => e.Controls).ToList();
         Assert.Equal(2, controls.Count);
