@@ -7,7 +7,7 @@ using Xunit;
 public sealed class CommandTests
 {
     [Fact]
-    public async Task DiagnosticsAreMachineReadableAndDeclareUnavailableFeatures()
+    public async Task DiagnosticsAreMachineReadableAndDeclareAvailableFeatures()
     {
         using var process = TestProcess.Start("Cli", "diagnostics", "--json");
         var result = await process.CompleteAsync();
@@ -15,7 +15,7 @@ public sealed class CommandTests
         Assert.Empty(result.StandardError);
         using var json = JsonDocument.Parse(result.StandardOutput);
         Assert.Equal("foundation", json.RootElement.GetProperty("stage").GetString());
-        Assert.False(json.RootElement.GetProperty("hostCommunicationAvailable").GetBoolean());
+        Assert.True(json.RootElement.GetProperty("hostCommunicationAvailable").GetBoolean());
         Assert.False(json.RootElement.GetProperty("collectionAvailable").GetBoolean());
         Assert.False(json.RootElement.GetProperty("controlsAvailable").GetBoolean());
     }
