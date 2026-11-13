@@ -3,7 +3,6 @@ namespace Workbench.Core.Activity.Contract;
 using System.Collections.Frozen;
 using System.Collections.Immutable;
 
-// The host sets this from the authenticated route, never from submitted fields. Only Operator may request a stop.
 public enum CallerScope
 {
     Operator,
@@ -58,8 +57,6 @@ public readonly record struct RequestId
 
 public readonly record struct ReceiptStep(ReceiptStage Stage, DateTimeOffset ObservedAt);
 
-// Only the ledger creates and advances a receipt, and every advance goes through ReceiptEdges. NoActionNeeded
-// always means AlreadyStopped, the contract's only no-op reason, so it carries no separate reason value.
 public sealed class ControlReceipt
 {
     internal ControlReceipt(RequestId request, ControlAction action, WorkKey target, ProcessIncarnation? seenIncarnation, CallerScope caller, DateTimeOffset requestedAt)
@@ -101,10 +98,8 @@ public sealed class ControlReceipt
 
     public RefusalReason? Refusal { get; }
 
-    // Views say "already stopped" whenever this is false, never "Workbench stopped it" (CT-3, CX-3).
     public bool WorkbenchDispatched => this.History.Any(step => step.Stage == ReceiptStage.Dispatched);
 
-    // A refusal reason is required exactly when the next stage is Refused.
     internal ControlReceipt Advance(ReceiptStage next, DateTimeOffset at, RefusalReason? refusal = null)
     {
         if (!ReceiptEdges.Allows(this.Stage, next))
@@ -121,7 +116,6 @@ public sealed class ControlReceipt
     }
 }
 
-// The contract's receipt stage edges. Nothing else decides receipt order.
 internal static class ReceiptEdges
 {
     private static readonly ImmutableArray<(ReceiptStage From, ReceiptStage To)> Edges =

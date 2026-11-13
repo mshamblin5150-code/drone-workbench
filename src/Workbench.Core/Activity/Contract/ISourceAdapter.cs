@@ -3,8 +3,6 @@ namespace Workbench.Core.Activity.Contract;
 using System.Collections.Immutable;
 using System.Diagnostics.CodeAnalysis;
 
-// A classified source refusal. Provider repeat-control facts keep this classification and never become a Workbench
-// action or acknowledgement (CX-3).
 public enum SourceRejection
 {
     NoMatchingJob,
@@ -19,9 +17,6 @@ public enum ExitObservation
     NotObserved,
 }
 
-// The one seam between a source adapter and Activity. Observation-only adapters implement the first three members.
-// Nothing can reach the control members in CA1: Activity builds a VerifiedControl only for an enabled capability,
-// and CA1 cannot represent one.
 public interface ISourceAdapter
 {
     SourceKind Kind { get; }
@@ -37,11 +32,8 @@ public interface ISourceAdapter
         Task.FromException<ControlEvidence>(new NotSupportedException("This adapter has no control route."));
 }
 
-// Process exit for one recorded incarnation, kept separate from the source outcome: neither implies the other.
 public sealed record ProcessExit(ProcessIncarnation Incarnation, ExitObservation Observation, DateTimeOffset ObservedAt);
 
-// Dispatch authority. Only Activity can build one, after its own checks, so an adapter can receive authority but never
-// mint it. It binds the exact work, generation, expected incarnation and required state for atomic source enforcement.
 public sealed class VerifiedControl
 {
     private readonly ControlReference reference;
@@ -74,10 +66,9 @@ public sealed class VerifiedControl
 
     public WorkState RequiredState { get; }
 
-    // A source restart invalidates generation-bound authority for both reference scopes.
-    public bool TryOpenHandle(SourceGeneration liveConnection, [NotNullWhen(true)] out string? handle)
+    public bool TryOpenHandle(SourceGeneration currentGeneration, [NotNullWhen(true)] out string? handle)
     {
-        handle = liveConnection == this.Generation && this.reference.IsUsableAt(liveConnection) ? this.reference.Handle : null;
+        handle = currentGeneration == this.Generation && this.reference.IsUsableAt(currentGeneration) ? this.reference.Handle : null;
         return handle is not null;
     }
 }
@@ -133,7 +124,6 @@ public sealed class ControlEvidence
     public static ControlEvidence Contradicted(IEnumerable<ProcessExit> exits, DateTimeOffset observedAt) => new(ReceiptStage.OutcomeContradicted, exits, observedAt);
 }
 
-// What an adapter needs to reconcile a dispatched receipt. Only Activity creates one.
 public sealed class ControlReceiptRef
 {
     internal ControlReceiptRef(

@@ -1,9 +1,7 @@
 namespace Workbench.TestSupport.Canary;
 
-// Real values are read inside each Scan call and live only in its locals, so a scanner never holds or writes one.
 public sealed class CanaryScanner(IReadOnlyCollection<string> fixtureCanaries, Func<IEnumerable<string>> readRealValues)
 {
-    // Shorter values would match ordinary text and turn every report into noise.
     public const int MinimumValueLength = 3;
 
     public static IEnumerable<string> ReadMachineValues()
@@ -40,7 +38,6 @@ public sealed class CanaryScanner(IReadOnlyCollection<string> fixtureCanaries, F
         return new CanaryReport(fixtureMatches, realMatches, matchedInputs);
     }
 
-    // A path also leaks as forward slashes or as a JSON-escaped string.
     private static string[] Variants(IEnumerable<string> values) =>
     [
         .. values
@@ -51,7 +48,6 @@ public sealed class CanaryScanner(IReadOnlyCollection<string> fixtureCanaries, F
             .Distinct(StringComparer.OrdinalIgnoreCase),
     ];
 
-    // A number such as a process id counts only at digit boundaries, so 4321 is not found inside 143210.
     private static int Count(string text, string value)
     {
         var numeric = value.All(char.IsAsciiDigit);

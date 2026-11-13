@@ -16,7 +16,6 @@ public sealed class CanaryInput
 
     public static CanaryInput Captured(string name, string text) => new(name, () => text);
 
-    // Only added lines count, so a commit that removes a leak passes.
     public static CanaryInput StagedDiff(string unifiedDiff) => new("staged diff", () => AddedLines(unifiedDiff));
 
     internal string Read() => this.read();

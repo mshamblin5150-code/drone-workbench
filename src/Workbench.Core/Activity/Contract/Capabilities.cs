@@ -39,7 +39,6 @@ public enum ControlAction
     InterruptTurn,
 }
 
-// Observation gaps only. Control-route gaps are DisabledReason values, so each reason lives in exactly one enum.
 public enum GapReason
 {
     NoSupportedEndpoint,
@@ -50,7 +49,6 @@ public enum GapReason
     NotTested,
 }
 
-// A set, because a version change disables a control that was already disabled for its route: both reasons stay visible.
 [Flags]
 public enum DisabledReason
 {
@@ -108,7 +106,6 @@ public sealed record CapabilityReport
 
     public SourceGeneration Generation { get; }
 
-    // Null when the source could not be asked, such as an unreachable Codex desktop owner.
     public string? SourceVersion { get; }
 
     public SourceState State { get; }
@@ -123,7 +120,6 @@ public sealed record CapabilityReport
 
 public sealed record EntrypointCoverage
 {
-    // A count of processes no listing covers (CV-5, CX-1). Null when the inventory was incomplete, so the total is unknown rather than zero.
     public EntrypointCoverage(
         Entrypoint entrypoint,
         CoverageLevel observation,
@@ -151,8 +147,8 @@ public sealed record EntrypointCoverage
             throw new ArgumentException("An uncovered entrypoint names its gap.", nameof(gap));
         }
 
-        if ((observation == CoverageLevel.Verified && evidence.Supports != CoverageLevel.Verified) ||
-            (covered && evidence.Supports is not (CoverageLevel.Verified or CoverageLevel.Observed)))
+        if ((observation == CoverageLevel.Verified && evidence.HighestJustifiedCoverage != CoverageLevel.Verified) ||
+            (covered && evidence.HighestJustifiedCoverage is not (CoverageLevel.Verified or CoverageLevel.Observed)))
         {
             throw new ArgumentException("The evidence does not support this coverage level.", nameof(evidence));
         }
@@ -192,7 +188,6 @@ public sealed record EntrypointCoverage
         this with { Controls = [.. this.Controls.Select(control => control.WithDisabled(reason))] };
 }
 
-// CA1 has no factory for an enabled control, so every control stays disabled by construction. CA5 adds enablement with conformance evidence.
 public sealed record ControlCapability
 {
     private const DisabledReason AllReasons =
@@ -234,19 +229,18 @@ public sealed record ControlCapability
     internal ControlCapability WithDisabled(DisabledReason reason) => new(this.Action, this.Target, this.Disabled | reason, this.Evidence);
 }
 
-// Supports is the highest coverage the evidence can justify: conformance on one version gives Verified, research gives Observed.
 public sealed record EvidenceRef
 {
-    private EvidenceRef(CoverageLevel supports, string? id, string? sourceVersion)
+    private EvidenceRef(CoverageLevel highestJustifiedCoverage, string? id, string? sourceVersion)
     {
-        this.Supports = supports;
+        this.HighestJustifiedCoverage = highestJustifiedCoverage;
         this.Id = id;
         this.SourceVersion = sourceVersion;
     }
 
     public static EvidenceRef None { get; } = new(CoverageLevel.Unverified, null, null);
 
-    public CoverageLevel Supports { get; }
+    public CoverageLevel HighestJustifiedCoverage { get; }
 
     public string? Id { get; }
 

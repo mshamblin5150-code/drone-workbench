@@ -200,7 +200,6 @@ public sealed class ControlReceiptTests
         Assert.Equal(RefusalReason.VersionChanged, Refusal(scenario, owned, live));
     }
 
-    // An idle background session with same-user ownership and a source-stable reference, under an admitted report.
     internal static LedgerScenario OwnedIdleBackgroundSession(out WorkKey key, out ProcessIncarnation live)
     {
         var scenario = new LedgerScenario(Claude);
@@ -216,7 +215,6 @@ public sealed class ControlReceiptTests
 
     internal static RequestId NewId() => new(Guid.NewGuid());
 
-    // A stopped background entry has no pid or status but still carries its short id.
     internal static ListedWork Stopped(LedgerScenario scenario, WorkKey key) =>
         ListedWork.Entry(key, Entrypoint.Background, lifecycle: SourceLifecycle.Stopped, reference: scenario.View(key).Reference);
 

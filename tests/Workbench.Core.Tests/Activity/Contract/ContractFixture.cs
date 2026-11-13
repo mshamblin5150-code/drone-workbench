@@ -3,7 +3,6 @@ namespace Workbench.Core.Tests.Activity.Contract;
 using Workbench.Core.Activity.Contract;
 using Workbench.TestSupport;
 
-// Synthetic values only. Thresholds are fixture numbers, not the issue 24 budgets.
 internal static class ContractFixture
 {
     public const string SessionA = "5e55a001-0000-4000-8000-000000000001";

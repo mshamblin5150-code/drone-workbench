@@ -3,7 +3,6 @@ namespace Workbench.Core.Tests.Activity.Contract;
 using Workbench.Core.Activity.Contract;
 using Workbench.TestSupport;
 
-// Drives one source through ActivityLedger's public surface on a manual clock.
 internal sealed class LedgerScenario
 {
     public LedgerScenario(SourceInstanceId source)

@@ -6,9 +6,6 @@ using Workbench.TestSupport;
 using Xunit;
 using static Workbench.Core.Tests.Activity.Contract.ContractFixture;
 
-// Opt-in perf probe: dotnet test --filter FullyQualifiedName~ReducerBenchmarks --explicit on. Stopwatch and allocation
-// counters only, because BenchmarkDotNet is not an approved dependency. The workload class has no xunit dependency,
-// so a BenchmarkDotNet case can wrap Build and ApplyOne unchanged. Absolute budgets belong to issue 24.
 public sealed class ReducerBenchmarks(ITestOutputHelper output)
 {
     private const int HotItems = 200;
@@ -62,8 +59,6 @@ public sealed class ReducerBenchmarks(ITestOutputHelper output)
     private sealed record Round(
         double ApplyMedianMicroseconds, double ApplyP95Microseconds, double ReadyMedianMicroseconds, long BytesPerApply, long BytesPerReady, int Gen0Collections, int Failures);
 
-    // One Claude source holding Size items: HotItems live sessions that every poll lists, and the rest ended history
-    // built through the ledger itself, so the history is a real projection rather than injected state.
     private sealed class Workload
     {
         private const int HistoryChunk = 1_000;
@@ -109,7 +104,6 @@ public sealed class ReducerBenchmarks(ITestOutputHelper output)
             return workload;
         }
 
-        // Batches are built before the timed region; only Apply, and Apply plus one read, are timed.
         public Round Run(int applies)
         {
             var batches = new SafeSourceBatch[applies];

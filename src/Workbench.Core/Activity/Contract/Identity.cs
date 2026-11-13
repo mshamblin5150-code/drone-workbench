@@ -35,7 +35,6 @@ public enum OwnershipEvidence
     WorkbenchOwnedServer,
 }
 
-// Only ActivityLedger.StartGeneration mints a first value, so a restarted adapter cannot start below what the ledger saw and be ignored as older.
 public readonly record struct SourceGeneration
 {
     internal SourceGeneration(long value) => this.Value = value;
@@ -53,7 +52,6 @@ public readonly record struct SourceGeneration
     public override string ToString() => $"g{this.Value}";
 }
 
-// A process id alone never identifies work: a reused id with a new creation time is a different incarnation.
 public readonly record struct ProcessIncarnation
 {
     public ProcessIncarnation(int processId, DateTimeOffset createdAtUtc)
@@ -79,7 +77,6 @@ public readonly record struct ProcessIncarnation
     public override string ToString() => $"process#{Grammar.Redact($"{this.ProcessId}@{this.CreatedAtUtc.UtcTicks}")}";
 }
 
-// The owner text is hashed inside Mint and never kept, so no configuration path can leave through this id.
 public sealed record SourceInstanceId
 {
     private readonly string fingerprint;
@@ -92,7 +89,6 @@ public sealed record SourceInstanceId
 
     public SourceKind Kind { get; }
 
-    // For Codex the owner is the server process identity or endpoint, never CODEX_HOME alone, so two servers on one home mint two ids.
     public static SourceInstanceId Mint(SourceKind kind, ReadOnlySpan<byte> fingerprintKey, ReadOnlySpan<char> owner)
     {
         Grammar.RequireDefined(kind, nameof(kind));
@@ -113,7 +109,6 @@ public sealed record SourceInstanceId
     public override string ToString() => $"{this.Kind}#{this.fingerprint[..8]}";
 }
 
-// The native id takes part in equality but has no public accessor and is redacted in ToString.
 public sealed record WorkKey
 {
     private readonly string nativeId;
@@ -130,7 +125,6 @@ public sealed record WorkKey
 
     public WorkKind Kind { get; }
 
-    // Set only for commands: a command never keeps its identity across a reconnect.
     public SourceGeneration? Connection { get; }
 
     internal string NativeId => this.nativeId;
@@ -161,7 +155,6 @@ public sealed record WorkKey
     public override string ToString() => $"{this.Kind}#{Grammar.Redact(this.nativeId)}";
 }
 
-// Scope derives from the target key, so a connection-scoped reference and its command key cannot disagree about the connection.
 public sealed record ControlReference
 {
     private readonly string handle;
@@ -178,7 +171,6 @@ public sealed record ControlReference
 
     internal string Handle => this.handle;
 
-    // A short id that is not a prefix of the session id is source drift, not a programmer error, so this returns false.
     public static bool TrySourceStable(WorkKey session, string handle, [NotNullWhen(true)] out ControlReference? reference)
     {
         ArgumentNullException.ThrowIfNull(session);
@@ -215,7 +207,6 @@ public sealed record ProjectRef
 
     public bool IsAssigned => this.Token is not null;
 
-    // The slug grammar rejects separators, colons and whitespace, so a path can never become a project token.
     public static ProjectRef Of(string token) => new(Grammar.RequireSlug(token, nameof(token)));
 }
 
@@ -235,7 +226,6 @@ public sealed record Association
     public DateTimeOffset LinkedAt { get; }
 }
 
-// Messages name the parameter and never the value, because the value may be a source id, a path or a process id.
 internal static class Grammar
 {
     private static readonly SearchValues<char> NativeIdCharacters =
@@ -246,9 +236,9 @@ internal static class Grammar
     private static readonly SearchValues<char> VersionCharacters =
         SearchValues.Create("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789.+-");
 
-    internal static bool IsNativeId(string? value) => value is { Length: >= 1 and <= 128 } && !value.AsSpan().ContainsAnyExcept(NativeIdCharacters);
+    internal static bool IsNativeId([NotNullWhen(true)] string? value) => value is { Length: >= 1 and <= 128 } && !value.AsSpan().ContainsAnyExcept(NativeIdCharacters);
 
-    internal static string RequireNativeId(string? value, string parameterName) => IsNativeId(value) ? value! : throw Invalid(parameterName);
+    internal static string RequireNativeId(string? value, string parameterName) => IsNativeId(value) ? value : throw Invalid(parameterName);
 
     internal static string RequireSlug(string? value, string parameterName) =>
         value is { Length: >= 1 and <= 64 } && value[0] != '-' && !value.AsSpan().ContainsAnyExcept(SlugCharacters)

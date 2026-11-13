@@ -76,8 +76,6 @@ internal enum Signal
     ConfirmationExpired,
 }
 
-// Measured thresholds from issue 24, injected. The contract fixes no numbers. A source reads Connected for
-// PollInterval plus a tolerance the contract does not name, taken here as StaleAfter minus PollInterval.
 public sealed class LivenessSettings
 {
     public LivenessSettings(TimeSpan pollInterval, TimeSpan staleAfter, TimeSpan startingWindow, TimeSpan restartWindow)
@@ -101,9 +99,6 @@ public sealed class LivenessSettings
     public TimeSpan RestartWindow { get; }
 }
 
-// Every WorkState change is one cell of this table, keyed by the prior state (null for new work) and a signal.
-// Each cell is decided exactly once: Move, Hold (the signal changes nothing from that state) or Never (the
-// classifier cannot produce that pair, so reaching it is a bug and throws).
 internal static class Liveness
 {
     private static readonly WorkState?[] Any = [null, .. Enum.GetValues<WorkState>().Select(state => (WorkState?)state)];
@@ -192,7 +187,6 @@ internal static class Liveness
 
     internal static bool IsDecided(WorkState? from, Signal signal) => CellOf(from, signal).Effect != Effect.Unassigned;
 
-    // Null means the signal holds the current state.
     internal static Transition? Step(WorkState? from, Signal signal)
     {
         var cell = CellOf(from, signal);
@@ -204,7 +198,6 @@ internal static class Liveness
         };
     }
 
-    // A partial inventory makes a missing process unknown, never exited.
     internal static ProcessFate FateOf(ProcessIncarnation? last, IReadOnlySet<ProcessIncarnation> live, bool inventoryComplete)
     {
         if (last is not { } incarnation)
@@ -220,7 +213,6 @@ internal static class Liveness
         return inventoryComplete ? ProcessFate.Exited : ProcessFate.Unknown;
     }
 
-    // The order of these checks is the precedence between rules for one listed entry.
     internal static Signal ClassifyListed(in Prior prior, ListedWork entry, ProcessFate lastFate, DateTimeOffset observedAt, LivenessSettings settings)
     {
         if (entry is not ListedWork.RecognizedEntry listed)
@@ -292,13 +284,11 @@ internal static class Liveness
         };
     }
 
-    // Unknown notification types are recorded and change nothing.
     internal static Signal? ClassifyHook(WaitingFor waitingFor) =>
         waitingFor is WaitingFor.PermissionPrompt or WaitingFor.IdlePrompt or WaitingFor.AgentNeedsInput or WaitingFor.ElicitationDialog
             ? Signal.HookWaiting
             : null;
 
-    // A restart that outlives RestartWindow reads Unknown, and stays there instead of cycling back to Restarting.
     private static Signal RestartOrOverdue(in Prior prior, Signal gap, DateTimeOffset observedAt, LivenessSettings settings) =>
         (prior.State == WorkState.Restarting && observedAt - prior.StateSince > settings.RestartWindow) ||
         (prior.State == WorkState.Unknown && prior.Reason == ReasonCode.RestartOverdue)
@@ -340,7 +330,6 @@ internal static class Liveness
         public override string ToString() => $"{this.From?.ToString() ?? "(new)"} --{this.Signal}--> {this.To} / {this.Reason}";
     }
 
-    // What the classifiers need to know about an item before this batch. State is null for new work.
     internal readonly record struct Prior(
         WorkState? State,
         ReasonCode Reason,

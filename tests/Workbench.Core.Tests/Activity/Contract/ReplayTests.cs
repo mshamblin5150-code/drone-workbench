@@ -4,7 +4,6 @@ using Workbench.Core.Activity.Contract;
 using Xunit;
 using static Workbench.Core.Tests.Activity.Contract.ContractFixture;
 
-// One named replay per CA1 live lane. Each writes its result lines so a lane run can save them. Lane 1 is the whole suite at trunk and head.
 public sealed class ReplayTests(ITestOutputHelper output)
 {
     [Fact]

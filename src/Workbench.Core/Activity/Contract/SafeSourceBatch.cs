@@ -41,9 +41,7 @@ public enum DisconnectReason
     SchemaDrift,
 }
 
-// The only thing an adapter hands Activity. Its shape fixes the source state and channel, and no shape has a slot
-// for a work state, raw text, an exception or dispatch authority. The hierarchy is closed: an abstract record would
-// let another assembly derive through its copy constructor, so this is a class with a private constructor.
+// An abstract record would let another assembly derive through its protected copy constructor, so this is a class with a private constructor.
 public abstract class SafeSourceBatch
 {
     private SafeSourceBatch(SourceInstanceId source, SourceGeneration generation, DateTimeOffset observedAt)
@@ -66,8 +64,6 @@ public abstract class SafeSourceBatch
 
     public DateTimeOffset ObservedAt { get; }
 
-    // The listing is a complete snapshot, so the ledger infers absence and adapters never report "gone". An
-    // incomplete process inventory makes a missing process unknown, never exited.
     public static SafeSourceBatch Polled(
         SourceInstanceId source,
         SourceGeneration generation,
@@ -155,8 +151,6 @@ public abstract class SafeSourceBatch
     }
 }
 
-// One entry of a complete poll listing with only the contract's allowlisted fields. Its members are internal:
-// adapters write evidence and only the ledger reads it.
 public abstract class ListedWork
 {
     private ListedWork(WorkKey work, Entrypoint entrypoint)
@@ -171,8 +165,6 @@ public abstract class ListedWork
 
     internal Entrypoint Entrypoint { get; }
 
-    // The incarnation is the live process the adapter matched to the listed pid, or null when none matched. The raw
-    // lifecycle is recorded for display and only Stopped is read, so a stale "blocked" cannot keep work live (LV-2).
     public static ListedWork Entry(
         WorkKey work,
         Entrypoint entrypoint,
@@ -187,7 +179,6 @@ public abstract class ListedWork
         DateTimeOffset? sourceReportedAt = null) =>
         new RecognizedEntry(work, entrypoint, status, lifecycle, incarnation, waitingFor, ownership, reference, parent, project, sourceReportedAt);
 
-    // An entry with an unknown enum value or a failed field. None of its other fields are trusted.
     public static ListedWork Unrecognized(WorkKey work, Entrypoint entrypoint = Entrypoint.Unknown) => new UnrecognizedEntry(work, entrypoint);
 
     internal sealed class RecognizedEntry : ListedWork
@@ -263,7 +254,6 @@ public abstract class ListedWork
     internal sealed class UnrecognizedEntry(WorkKey work, Entrypoint entrypoint) : ListedWork(work, entrypoint);
 }
 
-// CA1 defines the two hook kinds its reducer rows need. CA4 adds the others, each with its own rows.
 public abstract class HookEvent
 {
     private HookEvent(WorkKey session)
@@ -279,7 +269,6 @@ public abstract class HookEvent
 
     internal WorkKey Session { get; }
 
-    // SessionEnd alone never ends work. It is remembered until the incarnation exits (LV-6).
     public static HookEvent SessionEnd(WorkKey session) => new SessionEndEvent(session);
 
     public static HookEvent Notification(WorkKey session, WaitingFor waitingFor)

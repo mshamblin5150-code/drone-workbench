@@ -10,7 +10,6 @@ public enum ApplyOutcome
     IgnoredOutOfOrder,
 }
 
-// A work item as projected at the instant of the read, with staleness already applied.
 public sealed record WorkView
 {
     internal WorkView(WorkRecord record, WorkState state, ReasonCode reason, DateTimeOffset stateSince)
@@ -60,7 +59,6 @@ public sealed record WorkView
 
     public ControlReference? Reference { get; }
 
-    // The record's own immutable list, shared by reads with no change between them, so view equality detects change.
     public ImmutableArray<Association> Incarnations { get; }
 }
 
@@ -86,13 +84,8 @@ public sealed record SourceView
     public DateTimeOffset? LastSucceededAt { get; }
 }
 
-// The one owner of Activity's facts in CA1: per-source partitions of projected work, generation, health and the
-// admitted capability report, plus control receipts. Adapters send evidence and only this class decides state.
-// Single writer, not thread-safe: Activity serializes every adapter's batches through one loop. Apply costs
-// O(batch + tracked items of that source); ended work leaves the tracked set, so history never enters the hot path.
 public sealed class ActivityLedger
 {
-    // VersionChanged leads, so a refusal after a version change says so even when the route had its own reason.
     private static readonly (DisabledReason Disabled, RefusalReason Refusal)[] RefusalPrecedence =
     [
         (DisabledReason.VersionChanged, RefusalReason.VersionChanged),
@@ -114,7 +107,6 @@ public sealed class ActivityLedger
         this.clock = clock;
     }
 
-    // Strictly newer than any generation this ledger issued or applied for the source, so adapter restarts increment by construction (RS-1).
     public SourceGeneration StartGeneration(SourceInstanceId source)
     {
         ArgumentNullException.ThrowIfNull(source);
@@ -165,8 +157,6 @@ public sealed class ActivityLedger
         return ApplyOutcome.Applied;
     }
 
-    // Once a source reports a version different from the last known one, every control reads VersionChanged and
-    // observation levels stay as reported. Only conformance on the new version could clear it, and CA5 owns that.
     public CapabilityReport Admit(CapabilityReport reported)
     {
         ArgumentNullException.ThrowIfNull(reported);
@@ -186,8 +176,6 @@ public sealed class ActivityLedger
         return partition.Admitted;
     }
 
-    // Records a control request and returns its receipt with every stage already recorded. CA1 ends every request
-    // Refused or NoActionNeeded, because no capability can be enabled.
     public ControlReceipt Request(RequestId requestId, ControlAction action, WorkKey target, ProcessIncarnation? seenIncarnation, CallerScope caller)
     {
         if (requestId == default)
@@ -202,7 +190,6 @@ public sealed class ActivityLedger
         var requested = new ControlReceipt(requestId, action, target, seenIncarnation, caller, now);
         if (this.receipts.TryGetValue(requestId, out var existing))
         {
-            // A retry never gates or dispatches again. Reusing an id for other work is a client error, not a retry.
             return existing.Action == action && existing.Target == target
                 ? existing
                 : requested.Advance(ReceiptStage.Refused, now, RefusalReason.RequestIdConflict);
@@ -221,7 +208,6 @@ public sealed class ActivityLedger
             : null;
     }
 
-    // Every work item of one source, history included.
     public IReadOnlyList<WorkView> Work(SourceInstanceId source)
     {
         ArgumentNullException.ThrowIfNull(source);
@@ -229,7 +215,6 @@ public sealed class ActivityLedger
         return this.sources.TryGetValue(source, out var partition) ? [.. partition.Work.Values.Select(record => this.Project(record, now))] : [];
     }
 
-    // Null until the source's first poll, failure or unavailability batch.
     public SourceView? Source(SourceInstanceId source)
     {
         ArgumentNullException.ThrowIfNull(source);
@@ -255,7 +240,6 @@ public sealed class ActivityLedger
 
     private static RefusalReason RefusalFor(DisabledReason disabled) => RefusalPrecedence.First(entry => disabled.HasFlag(entry.Disabled)).Refusal;
 
-    // A tracked command was listed by an older connection, so its identity dies with that connection (CX-2).
     private static void AdvanceGeneration(SourcePartition partition, SafeSourceBatch batch)
     {
         partition.Generation = batch.Generation;
@@ -283,7 +267,6 @@ public sealed class ActivityLedger
         partition.Disconnect = disconnect;
     }
 
-    // Hooks never create work, and a late event never overrides a newer observation of the same item.
     private static void ApplyHooks(SourcePartition partition, SafeSourceBatch.HookDelivery delivery)
     {
         foreach (var hook in delivery.Events)
@@ -372,8 +355,6 @@ public sealed class ActivityLedger
         partition.Disconnect = null;
     }
 
-    // The first failing check wins. AlreadyStopped needs a fresh stopped observation in the current generation,
-    // retained ownership and no live incarnation, and needs no live handle (CT-3).
     private ControlReceipt Gate(ControlReceipt requested, DateTimeOffset now)
     {
         ControlReceipt Refuse(RefusalReason reason) => requested.Advance(ReceiptStage.Refused, now, reason);
@@ -445,12 +426,10 @@ public sealed class ActivityLedger
         return partition;
     }
 
-    // One source instance's projection. Only that source's batches write it, so CX-4's separation is structural.
     private sealed class SourcePartition
     {
         public Dictionary<WorkKey, WorkRecord> Work { get; } = [];
 
-        // Work that is not Ended: the only set absence, disconnect and reconnect walks visit.
         public HashSet<WorkRecord> Tracked { get; } = [];
 
         public SourceGeneration Generation { get; set; }
@@ -475,7 +454,6 @@ public sealed class ActivityLedger
     }
 }
 
-// Mutable per-item facts. Only ActivityLedger writes them, and they never leave Core except through WorkView.
 internal sealed class WorkRecord(WorkKey key, DateTimeOffset firstSeenAt)
 {
     public WorkKey Key { get; } = key;
@@ -526,7 +504,6 @@ internal sealed class WorkRecord(WorkKey key, DateTimeOffset firstSeenAt)
 
     public Liveness.Prior Prior => new(this.State, this.Reason, this.StateSince, this.FirstSeenAt, this.EverLive, this.SessionEndSeen, this.LastIncarnation);
 
-    // A relisted ended item starts a new life: its earlier liveness and SessionEnd no longer apply.
     public void StartNewLife(DateTimeOffset at)
     {
         this.FirstSeenAt = at;
@@ -534,7 +511,6 @@ internal sealed class WorkRecord(WorkKey key, DateTimeOffset firstSeenAt)
         this.SessionEndSeen = false;
     }
 
-    // Ownership is retained across a stop and bound to this exact key; a listing without it never revokes it.
     public void Confirm(ListedWork entry, DateTimeOffset at, Liveness.ProcessFate lastFate)
     {
         this.LastConfirmedAt = at;
