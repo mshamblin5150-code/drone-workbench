@@ -13,22 +13,24 @@ public sealed class ReducerBenchmarks(ITestOutputHelper output)
     private const int AppliesPerRound = 200;
     private const int WholeSourceReadsPerRound = 50;
     private const int Rounds = 5;
-    private const int OneInEveryHundredTracked = 100;
+    private const int OneInEveryHundredUnresolved = 100;
 
     [Fact(Explicit = true)]
     public void ApplyCostFollowsTheBatchAndNotTheHistory()
     {
         Workload[] workloads =
         [
-            Workload.Build(10_000, trackedEvery: null),
-            Workload.Build(100_000, trackedEvery: null),
-            Workload.Build(10_000, trackedEvery: OneInEveryHundredTracked),
-            Workload.Build(100_000, trackedEvery: OneInEveryHundredTracked),
+            Workload.Build(10_000, unresolvedEvery: null, settles: true),
+            Workload.Build(100_000, unresolvedEvery: null, settles: true),
+            Workload.Build(10_000, unresolvedEvery: OneInEveryHundredUnresolved, settles: false),
+            Workload.Build(100_000, unresolvedEvery: OneInEveryHundredUnresolved, settles: false),
+            Workload.Build(10_000, unresolvedEvery: OneInEveryHundredUnresolved, settles: true),
+            Workload.Build(100_000, unresolvedEvery: OneInEveryHundredUnresolved, settles: true),
         ];
         foreach (var workload in workloads)
         {
-            output.WriteLine($"built {workload.Name}: {workload.Ended} Ended and {workload.TrackedHistory} tracked Unknown history items, {HotItems} live in the hot source");
             workload.Run(Warmup, Warmup / 5);
+            output.WriteLine($"built {workload.Name}: {workload.Census()} ({HotItems} live in the hot source)");
         }
 
         var samples = workloads.ToDictionary(workload => workload, _ => new List<Round>());
@@ -54,19 +56,25 @@ public sealed class ReducerBenchmarks(ITestOutputHelper output)
         string Compare(Func<Workload, double> metric, Workload small, Workload large) =>
             $"10k {metric(small):F1} us, 100k {metric(large):F1} us, ratio {metric(large) / metric(small):F2}";
 
-        var (endedSmall, endedLarge, trackedSmall, trackedLarge) = (workloads[0], workloads[1], workloads[2], workloads[3]);
+        var (endedSmall, endedLarge, unresolvedSmall, unresolvedLarge, lostSmall, lostLarge) = (workloads[0], workloads[1], workloads[2], workloads[3], workloads[4], workloads[5]);
         output.WriteLine($"apply, Ended-only history: {Compare(ApplyMedian, endedSmall, endedLarge)} (rule: <= 3.00)");
         output.WriteLine(
-            $"apply, {trackedSmall.TrackedHistory} vs {trackedLarge.TrackedHistory} tracked Unknown history items: {Compare(ApplyMedian, trackedSmall, trackedLarge)} " +
-            "(reported, not gated: every complete poll revisits each tracked item it does not list)");
+            $"apply, {unresolvedSmall.Unresolved} vs {unresolvedLarge.Unresolved} unresolved Unknown history items inside the settling window: " +
+            $"{Compare(ApplyMedian, unresolvedSmall, unresolvedLarge)} (reported, not gated: every complete poll revisits each tracked item it does not list)");
+        output.WriteLine(
+            $"apply, {lostSmall.Unresolved} vs {lostLarge.Unresolved} history items settled into Lost: {Compare(ApplyMedian, lostSmall, lostLarge)} (rule: <= 3.00)");
         output.WriteLine(
             $"apply+Work(source), Ended-only history: {Compare(WholeMedian, endedSmall, endedLarge)} " +
             "(Work projects every record of the source, Ended history included, so it scales with total history)");
-        output.WriteLine($"apply+Work(source), tracked history: {Compare(WholeMedian, trackedSmall, trackedLarge)}");
+        output.WriteLine($"apply+Work(source), unresolved history: {Compare(WholeMedian, unresolvedSmall, unresolvedLarge)}");
+        output.WriteLine($"apply+Work(source), Lost history: {Compare(WholeMedian, lostSmall, lostLarge)}");
         Assert.All(samples.Values.SelectMany(rounds => rounds), result => Assert.Equal(0, result.Failures));
         Assert.True(
             ApplyMedian(endedLarge) <= 3 * ApplyMedian(endedSmall),
             $"Apply cost grew with Ended history: {ApplyMedian(endedLarge):F1} us at 100k against {ApplyMedian(endedSmall):F1} us at 10k.");
+        Assert.True(
+            ApplyMedian(lostLarge) <= 3 * ApplyMedian(lostSmall),
+            $"Apply cost grew with Lost history: {ApplyMedian(lostLarge):F1} us at 100k against {ApplyMedian(lostSmall):F1} us at 10k.");
     }
 
     private static double Median(IEnumerable<double> values)
@@ -99,11 +107,14 @@ public sealed class ReducerBenchmarks(ITestOutputHelper output)
         private readonly ProcessIncarnation[] hotProcesses = [.. Enumerable.Range(0, HotItems).Select(i => new ProcessIncarnation(1_000 + i, Start.AddHours(-1)))];
         private bool busy;
 
-        private Workload(int size, int? trackedEvery)
+        private Workload(int size, int? unresolvedEvery, bool settles)
         {
             this.Size = size;
-            this.Name = $"{(trackedEvery is { } every ? $"{100.0 / every:0.#}% tracked" : "Ended-only")} {size / 1_000}k";
-            this.ledger = new ActivityLedger(Settings, this.clock);
+            this.Name = $"{(unresolvedEvery is { } every ? $"{100.0 / every:0.#}% {(settles ? "Lost" : "unresolved")}" : "Ended-only")} {size / 1_000}k";
+            var settings = settles
+                ? Settings
+                : new LivenessSettings(Settings.MissedPollLimit, Settings.MissedPollMargin, Settings.StartingWindow, Settings.RestartWindow, TimeSpan.FromDays(365));
+            this.ledger = new ActivityLedger(settings, this.clock);
             this.generation = this.ledger.StartGeneration(Claude);
         }
 
@@ -111,15 +122,13 @@ public sealed class ReducerBenchmarks(ITestOutputHelper output)
 
         public string Name { get; }
 
-        public int Ended { get; private set; }
+        public int Unresolved { get; private set; }
 
-        public int TrackedHistory { get; private set; }
-
-        public static Workload Build(int size, int? trackedEvery)
+        public static Workload Build(int size, int? unresolvedEvery, bool settles)
         {
-            var workload = new Workload(size, trackedEvery);
+            var workload = new Workload(size, unresolvedEvery, settles);
             var history = size - HotItems;
-            bool StaysTracked(int index) => trackedEvery is { } every && index % every == 0;
+            bool StaysTracked(int index) => unresolvedEvery is { } every && index % every == 0;
             for (var offset = 0; offset < history; offset += HistoryChunk)
             {
                 var chunk = Enumerable.Range(offset, Math.Min(HistoryChunk, history - offset)).ToArray();
@@ -133,15 +142,18 @@ public sealed class ReducerBenchmarks(ITestOutputHelper output)
             workload.Poll([], []);
             var views = workload.ledger.Work(Claude);
             var expectedTracked = Enumerable.Range(0, history).Count(StaysTracked);
-            workload.Ended = views.Count(view => view.State == WorkState.Ended);
-            workload.TrackedHistory = views.Count - workload.Ended - HotItems;
-            if (views.Count != size || workload.TrackedHistory != expectedTracked || workload.Ended != history - expectedTracked)
+            var ended = views.Count(view => view.State == WorkState.Ended);
+            workload.Unresolved = views.Count - ended - HotItems;
+            if (views.Count != size || workload.Unresolved != expectedTracked || ended != history - expectedTracked)
             {
                 throw new InvalidOperationException("The workload did not build the intended projection.");
             }
 
             return workload;
         }
+
+        public string Census() =>
+            string.Join(", ", this.ledger.Work(Claude).CountBy(view => view.State).OrderBy(pair => pair.Key).Select(pair => $"{pair.Value} {pair.Key}"));
 
         public Round Run(int applies, int wholeSourceReads)
         {
