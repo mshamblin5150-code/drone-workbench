@@ -310,6 +310,12 @@ public sealed class ActivityLedger
 
         var completePoll = batch is SafeSourceBatch.PollSnapshot { ProcessInventoryComplete: true };
         partition.SettledSince = Liveness.SettledSince(partition.SettledSince, partition.Schedule, batch.ObservedAt, completePoll, this.settings);
+        partition.Missed = partition.Missed.Elapse(partition.Schedule, batch.ObservedAt, this.settings);
+        foreach (var record in partition.Tracked)
+        {
+            record.Missed = record.Missed.Elapse(partition.Schedule, batch.ObservedAt, this.settings);
+        }
+
         switch (batch)
         {
             case SafeSourceBatch.PollSnapshot poll:

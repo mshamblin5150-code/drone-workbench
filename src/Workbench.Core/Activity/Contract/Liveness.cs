@@ -370,6 +370,22 @@ internal static class Liveness
         internal MissedPolls Add(DateTimeOffset at, LivenessSettings settings) =>
             this.LimitReachedAt is not null ? this : new(this.Count + 1, this.Count + 1 == settings.MissedPollLimit ? at : null);
 
+        internal MissedPolls Elapse(PollSchedule? schedule, DateTimeOffset at, LivenessSettings settings)
+        {
+            if (schedule is not { } previous)
+            {
+                return this;
+            }
+
+            var missed = this;
+            for (var expected = 1; missed.LimitReachedAt is null && previous.MissedAt(expected, settings) < at; expected++)
+            {
+                missed = missed.Add(previous.MissedAt(expected, settings), settings);
+            }
+
+            return missed;
+        }
+
         internal DateTimeOffset? LimitPassedAt(PollSchedule? schedule, DateTimeOffset now, LivenessSettings settings) =>
             this.LimitReachedAt ?? (schedule?.MissedAt(settings.MissedPollLimit - this.Count, settings) is { } due && now > due ? due : null);
     }
