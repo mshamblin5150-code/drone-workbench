@@ -223,7 +223,9 @@ internal static class Liveness
 
         if (listed.Lifecycle == SourceLifecycle.Stopped)
         {
-            return listed.Incarnation is null && listed.Status == ListedStatus.None ? Signal.ListedStopped : Signal.ListedContradictory;
+            return listed.Entrypoint == Entrypoint.Background && listed.Incarnation is null && listed.Status == ListedStatus.None
+                ? Signal.ListedStopped
+                : Signal.ListedContradictory;
         }
 
         if (listed.Status == ListedStatus.NotLoaded)

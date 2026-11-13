@@ -345,6 +345,20 @@ public sealed class LivenessReducerTests(ITestOutputHelper output)
     }
 
     [Fact]
+    public void AStoppedLifecycleReadsStoppedOnlyOnABackgroundEntry()
+    {
+        var scenario = new LedgerScenario(Claude);
+        var keys = Enum.GetValues<Entrypoint>().ToDictionary(entrypoint => entrypoint, entrypoint => Session($"stopped-{entrypoint}"));
+
+        scenario.Poll([.. keys.Select(pair => ListedWork.Entry(pair.Value, pair.Key, lifecycle: SourceLifecycle.Stopped))], []);
+
+        Assert.Equal((WorkState.Stopped, ReasonCode.SourceReported), scenario.StateOf(keys[Entrypoint.Background]));
+        Assert.All(
+            keys.Where(pair => pair.Key != Entrypoint.Background),
+            pair => Assert.Equal((WorkState.Unknown, ReasonCode.Contradictory), scenario.StateOf(pair.Value)));
+    }
+
+    [Fact]
     public void AStoppedEntryWithNoKnownProcessEndsOnRemovalOnlyUnderACompleteInventory()
     {
         ReasonCode RemovedUnder(bool inventoryComplete, out WorkState state)
