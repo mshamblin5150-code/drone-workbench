@@ -137,9 +137,7 @@ public sealed class ReplayTests(ITestOutputHelper output)
         Assert.Same(first, second);
         Assert.False(first.WorkbenchDispatched);
         Assert.Equal(0, adapter.Dispatches);
-        output.WriteLine(
-            $"PASS one receipt, {adapter.Dispatches} adapter dispatches. The plan's lane 6 text says one dispatch, which conflicts with CT-4 " +
-            "(the first receipt, nothing dispatched). CA1 follows CT-4.");
+        output.WriteLine($"PASS one receipt and {adapter.Dispatches} adapter dispatches, so the repeat adds no dispatch");
     }
 
     [Fact]
