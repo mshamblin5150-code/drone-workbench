@@ -102,16 +102,21 @@ threshold. Activity keeps one count for each source and one for each work item.
 - An expected poll that never arrived also counts as a miss. After the latest
   scheduled batch, the first expected poll is missed once that batch's interval
   plus `MissedPollMargin` has passed with no further batch. Each later expected
-  poll is missed one interval after the one before it. The next batch replaces
-  the interval, so the schedule always follows the latest batch.
+  poll is missed one interval after the one before it.
+- When the next scheduled batch arrives, Activity first adds the expected polls
+  already missed under the old schedule to the source count and to each work
+  item count. Then it applies the batch, and the batch's interval starts the new
+  schedule. A late batch therefore keeps every expected poll missed before it
+  arrived, and a batch that does not confirm the subject never lowers its count.
 - The limit is reached when the arrived misses plus the overdue expected polls
   reach `MissedPollLimit`.
 
 A source at the limit reads `Disconnected`, and its work reads `Stale` with
 `SourceDisconnected`. A work item at its own limit while its source is still
-`Connected` reads `Stale` with `NoConfirmation`. An item that successful polls
-stop listing therefore goes `Stale` after `MissedPollLimit` polls that did not
-list it, however long or short those intervals were.
+`Connected` reads `Stale` with `NoConfirmation`. An item that on-time
+successful polls stop listing therefore goes `Stale` after `MissedPollLimit`
+polls that did not list it, however long or short those intervals were. A late
+poll that does not list the item also counts the expected polls it missed.
 
 ## Channels
 
