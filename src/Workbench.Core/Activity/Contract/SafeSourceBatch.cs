@@ -206,7 +206,7 @@ public abstract class ListedWork
                 throw Grammar.Invalid(nameof(incarnation));
             }
 
-            if (reference is not null && reference.Target != work)
+            if (reference is not null && (reference.Target != work || entrypoint is Entrypoint.InteractiveCli or Entrypoint.Desktop))
             {
                 throw Grammar.Invalid(nameof(reference));
             }

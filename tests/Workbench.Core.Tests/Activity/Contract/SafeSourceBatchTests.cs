@@ -2,6 +2,7 @@ namespace Workbench.Core.Tests.Activity.Contract;
 
 using System.Reflection;
 using Workbench.Core.Activity.Contract;
+using Workbench.TestSupport.Canary;
 using Xunit;
 using static Workbench.Core.Tests.Activity.Contract.ContractFixture;
 
@@ -55,6 +56,22 @@ public sealed class SafeSourceBatchTests
         AssertRejected(() => ListedWork.Entry(key, Entrypoint.Background, reference: otherReference));
         AssertRejected(() => ListedWork.Entry(key, Entrypoint.Background, parent: key));
         AssertRejected(() => ListedWork.Entry(key, Entrypoint.Background, parent: WorkKey.Of(CodexOwned, WorkKind.Thread, "thread-1")));
+    }
+
+    [Fact]
+    public void AnInteractiveOrDesktopEntryRejectsAControlReferenceWithoutEchoingIt()
+    {
+        var key = Session(SessionA);
+        Assert.True(ControlReference.TrySourceStable(key, ShortA, out var reference));
+
+        foreach (var entrypoint in new[] { Entrypoint.InteractiveCli, Entrypoint.Desktop })
+        {
+            var error = Assert.Throws<ArgumentException>(() => ListedWork.Entry(key, entrypoint, reference: reference));
+            Assert.Equal("reference", error.ParamName);
+            Assert.True(new CanaryScanner([SessionA, ShortA], () => []).Scan([CanaryInput.Captured("message", error.Message)]).Clean);
+        }
+
+        Assert.NotNull(ListedWork.Entry(key, Entrypoint.Background, reference: reference));
     }
 
     [Fact]
