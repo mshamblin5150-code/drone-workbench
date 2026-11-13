@@ -94,29 +94,42 @@ nothing.
 Staleness counts missed polls. It never compares elapsed time against one
 threshold. Activity keeps one count for each source and one for each work item.
 
-- A scheduled batch that does not confirm the subject adds one miss when it
-  arrives. For a source, only a `Polled` batch confirms it, and an
-  `Unavailable` batch restarts its count instead of adding a miss. For a work
-  item, only a `Polled` batch that lists the item confirms it. A confirmation
-  resets the count to zero.
-- An expected poll that never arrived also counts as a miss. After the latest
-  scheduled batch, the first expected poll is missed once that batch's interval
-  plus `MissedPollMargin` has passed with no further batch. Each later expected
-  poll is missed one interval after the one before it.
-- When the next scheduled batch arrives, Activity first adds the expected polls
-  already missed under the old schedule to the source count and to each work
-  item count. Then it applies the batch, and the batch's interval starts the new
-  schedule. A late batch therefore keeps every expected poll missed before it
-  arrived, and a batch that does not confirm the subject never lowers its count.
-- The limit is reached when the arrived misses plus the overdue expected polls
+- Each scheduled batch fills one expected poll, the latest one already due when
+  the batch arrives. If no expected poll is due yet, or the batch is the first
+  one, the batch fills a poll due at its own arrival.
+- After a batch, the next expected poll is due one batch interval after the
+  expected poll that the batch filled. Each later expected poll is due one
+  interval after the one before it. An expected poll is overdue once
+  `MissedPollMargin` has passed since it was due.
+- A scheduled batch that does not confirm the subject is one miss. For a
+  source, only a `Polled` batch confirms it, and an `Unavailable` batch
+  restarts its count instead of adding a miss. For a work item, only a `Polled`
+  batch that lists the item confirms it. A confirmation resets the count to
+  zero.
+- A batch that arrives after its expected poll became overdue is that poll's
+  miss, not one more. The miss counts from when the poll became overdue.
+- An expected poll that no batch filled is one more miss once it is overdue.
+  When the next scheduled batch arrives, Activity first adds each of these
+  misses to the source count and to each work item count, at the time its poll
+  became overdue. Then it applies the batch. A batch that does not confirm the
+  subject therefore never lowers its count.
+- The limit is reached when the counted misses plus the overdue expected polls
   reach `MissedPollLimit`.
+
+For example, take a 2-second interval, a 0.5-second margin, and a limit of 3,
+with times counted from a `Polled` batch. A `Failed` batch at 2.6 seconds fills
+the expected poll due at 2 seconds and is one miss. If no batch follows, the
+expected polls due at 4 and 6 seconds become overdue at 4.5 and 6.5 seconds.
+The source reads `Disconnected` at 6.5 seconds, as it would after silence
+alone.
 
 A source at the limit reads `Disconnected`, and its work reads `Stale` with
 `SourceDisconnected`. A work item at its own limit while its source is still
-`Connected` reads `Stale` with `NoConfirmation`. An item that on-time
-successful polls stop listing therefore goes `Stale` after `MissedPollLimit`
-polls that did not list it, however long or short those intervals were. A late
-poll that does not list the item also counts the expected polls it missed.
+`Connected` reads `Stale` with `NoConfirmation`. An item that successful polls
+stop listing therefore goes `Stale` once `MissedPollLimit` polls have not
+listed it, however long or short those intervals were. This holds whether each
+poll arrived before or after its expected poll became overdue. Expected polls
+that no batch filled add to the count.
 
 ## Channels
 
