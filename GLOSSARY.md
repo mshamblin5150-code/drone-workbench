@@ -19,6 +19,24 @@ _Avoid_: assuming one source represents every instance of an application
 A dated claim from a source about activity, resources or an artifact. An
 observation is evidence rather than permanent truth about an external object.
 
+**Collector**:
+Workbench's continuously running monitoring that gathers observations while the
+user is signed in.
+_Avoid_: agent, drone, daemon
+
+**Monitoring stop**:
+A deliberate user instruction pausing the collector. It stays in force across
+restarts and sign-ins until the user resumes monitoring.
+_Avoid_: bare "stop", which belongs to job control
+
+**Retry exhaustion**:
+The collector failed repeatedly after unexpected exits and gave up until the next
+sign-in or a user resume. It is distinct from a monitoring stop.
+
+**Data age**:
+How long ago a view's information was last confirmed by an observation.
+_Avoid_: "live" as a promise of freshness
+
 **Coverage**:
 The declared scope a source can report, including unavailable, unsupported or
 unverified parts. Missing coverage does not establish that no work exists.
