@@ -1,5 +1,5 @@
 {
-  "checked_date": "2026-11-12",
+  "checked_date": "2026-11-13",
   "packages": [
     {
       "id": "microsoft.data.sqlite",
@@ -58,6 +58,15 @@
       "status": "Analyzer-only development dependency (developmentDependency=true, no package dependencies). SHA-512 taken from the nuget.org catalog packageHash; package not downloaded or executed; rule-set configuration, SDK/C# compatibility and locked restore still unverified.",
       "nupkg_sha512_base64": "0RHqc/HMgdQDpXJ7mxqJyUUiJvVk91kRJnfxgq998H7Pvw4FPEVMLomr5AE5k0Sm1TI5bB7YRJmjrkEj6NPSOg==",
       "artifact_url": "https://api.nuget.org/v3-flatcontainer/roslynator.analyzers/5.0.1/roslynator.analyzers.5.0.1.nupkg"
+    },
+    {
+      "id": "benchmarkdotnet",
+      "version": "0.15.8",
+      "source": "https://api.nuget.org/v3-flatcontainer/benchmarkdotnet/index.json",
+      "published": "2025-11-30",
+      "status": "Latest stable release; 0.16.0-preview.2 is prerelease. Owner-approved on issue 26 for measurement only, referenced by tests/Workbench.Core.Tests. Downloaded nupkg SHA-512 equals the nuget.org catalog packageHash. Ships lib/netstandard2.0, net6.0 and net8.0 with no net11.0 moniker, so net11.0 resolves the net8.0 asset. On SDK 11.0.100 a throwaway benchmark ran with the in-process toolchain; the default and explicit-runtime out-of-process toolchains threw NotImplementedException for the unrecognized net11.0 moniker. Benchmarks must use the in-process toolchain until a stable release adds net11.0. Transitive closure fixed by that project's packages.lock.json and accepted by locked restore.",
+      "nupkg_sha512_base64": "QUZ5ClSA06aLdm+kC7nbpOE2Jlhu7loBg8q8gLDV5wBuQ1aPN7Ns+eHxei1mvgsklDT663a/sJlSxMKAfdFcJw==",
+      "artifact_url": "https://api.nuget.org/v3-flatcontainer/benchmarkdotnet/0.15.8/benchmarkdotnet.0.15.8.nupkg"
     }
   ],
   "status": "Version metadata only; no package or runtime code executed."
