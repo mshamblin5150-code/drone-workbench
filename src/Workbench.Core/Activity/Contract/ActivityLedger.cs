@@ -200,6 +200,11 @@ public sealed class ActivityLedger
         var requested = new ControlReceipt(requestId, action, target, seenIncarnation, caller, now);
         if (this.receipts.TryGetValue(requestId, out var existing))
         {
+            if (caller != CallerScope.Operator && caller != existing.Caller)
+            {
+                return requested.Advance(ReceiptStage.Refused, now, RefusalReason.CallerScope);
+            }
+
             return existing.Action == action && existing.Target == target
                 ? existing
                 : requested.Advance(ReceiptStage.Refused, now, RefusalReason.RequestIdConflict);

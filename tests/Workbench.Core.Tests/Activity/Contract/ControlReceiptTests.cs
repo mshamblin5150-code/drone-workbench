@@ -83,6 +83,25 @@ public sealed class ControlReceiptTests
     }
 
     [Fact]
+    public void ADuplicateRequestIdReturnsTheReceiptOnlyToItsOwnCallerScopeOrTheOperator()
+    {
+        var scenario = OwnedIdleBackgroundSession(out var key, out var live);
+        var operatorId = new RequestId(Guid.Parse("00000000-0000-4000-8000-0000000000c6"));
+        var droneId = new RequestId(Guid.Parse("00000000-0000-4000-8000-0000000000c7"));
+        var operatorReceipt = scenario.Ledger.Request(operatorId, ControlAction.StopBackgroundSession, key, live, CallerScope.Operator);
+        var droneReceipt = scenario.Ledger.Request(droneId, ControlAction.StopBackgroundSession, key, live, CallerScope.Drone);
+
+        var droneReusingOperatorId = scenario.Ledger.Request(operatorId, ControlAction.StopBackgroundSession, key, live, CallerScope.Drone);
+
+        Assert.NotSame(operatorReceipt, droneReusingOperatorId);
+        Assert.Equal((ReceiptStage.Refused, RefusalReason.CallerScope), (droneReusingOperatorId.Stage, droneReusingOperatorId.Refusal));
+        Assert.False(droneReusingOperatorId.WorkbenchDispatched);
+        Assert.Same(operatorReceipt, scenario.Ledger.Request(operatorId, ControlAction.StopBackgroundSession, key, live, CallerScope.Operator));
+        Assert.Same(droneReceipt, scenario.Ledger.Request(droneId, ControlAction.StopBackgroundSession, key, live, CallerScope.Drone));
+        Assert.Same(droneReceipt, scenario.Ledger.Request(droneId, ControlAction.StopBackgroundSession, key, live, CallerScope.Operator));
+    }
+
+    [Fact]
     public void AnIdReusedForOtherWorkIsRefusedAsAConflictAndLeavesTheFirstReceipt()
     {
         var scenario = OwnedIdleBackgroundSession(out var key, out var live);
