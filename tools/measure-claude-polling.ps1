@@ -2,7 +2,7 @@
 [CmdletBinding()]
 param(
     [ValidateRange(5, 200)][int] $Iterations = 20,
-    [int[]] $CandidateIntervalsSeconds = @(5, 10, 15, 30, 60),
+    [ValidateNotNullOrEmpty()][ValidateRange(1, 86400)][int[]] $CandidateIntervalsSeconds = @(5, 10, 15, 30, 60),
     [string] $HostDll,
     [ValidateRange(1, 120)][int] $CommandTimeoutSeconds = 10,
     [ValidateRange(1, 300)][int] $HostTimeoutSeconds = 60
@@ -70,8 +70,8 @@ function Get-Stats([double[]] $Values) {
     [pscustomobject]@{ median = [Math]::Round($median, 1); min = [Math]::Round($sorted[0], 1); max = [Math]::Round($sorted[-1], 1); runs = $sorted.Count }
 }
 
-$claude = Find-Claude
 $root = Resolve-ClaudeRoot
+$claude = Find-Claude
 $dotnet = & (Join-Path $PSScriptRoot 'bootstrap-dotnet.ps1')
 $hostDll = if ($HostDll) { $HostDll } else { Join-Path $projectRoot '.local/publish/Host/Workbench.Host.dll' }
 if (-not (Test-Path -LiteralPath $hostDll -PathType Leaf)) {
@@ -86,14 +86,18 @@ $null = $cpuSampler.NextValue()
 $machineLoad = [Collections.Generic.List[double]]::new()
 
 function Add-Failure([string] $Name) { $failures[$Name] = 1 + ($failures[$Name] ?? 0) }
+$script:uncontainedRuns = 0
+function Add-Containment([BoundedRun+Result] $Run) { if (-not $Run.Contained) { $script:uncontainedRuns++ } }
 
 for ($i = 0; $i -lt $Iterations; $i++) {
     $v = Invoke-Claude @('--version')
+    Add-Containment $v
     $version = Get-Version $v
     if ($null -eq $version) { Add-Failure "version:$($v.Failure)"; continue }
     $null = $versions.Add($version)
 
     $a = Invoke-Claude @('agents', '--json', '--all')
+    Add-Containment $a
     $listed = $null
     if ($a.Failure -eq 'None' -and $a.ExitCode -eq 0) {
         try {
@@ -107,6 +111,7 @@ for ($i = 0; $i -lt $Iterations; $i++) {
     $runs = @{}
     foreach ($step in $order) {
         $runs[$step] = if ($step -eq 'startup') { Invoke-Host @('--not-a-mode') } else { Invoke-Host @('observe-claude', '--json') }
+        Add-Containment $runs[$step]
     }
     if ($runs.startup.Failure -ne 'None' -or $runs.startup.ExitCode -ne 2) { Add-Failure "hostStartup:$($runs.startup.Failure)"; continue }
     $state = $null
@@ -134,6 +139,7 @@ $report = [ordered]@{
     iterations = $Iterations
     completedSamples = $samples.Count
     failures = $failures
+    uncontainedRuns = $script:uncontainedRuns
     commandTimeoutSeconds = $CommandTimeoutSeconds
     outputLimitBytes = $outputLimitBytes
     machineCpuPercentDuringRun = Get-Stats $machineLoad
@@ -147,6 +153,7 @@ $report = [ordered]@{
     machineSharePercent = [ordered]@{}
     limits = @(
         'Only completed samples are in the statistics. Failed samples are counted under failures.',
+        'uncontainedRuns counts processes that could not be placed in a Job Object, including any that exited first. Their timeout cleanup falls back to a process-tree kill.',
         'Child CPU covers each claude.exe process only, not any grandchild it starts.',
         'Host in-process CPU is the one-shot observe process minus a startup-only Host run, so it includes JIT and is an upper bound for a warm loop.',
         'Wall time includes process creation and waits on the child commands.'

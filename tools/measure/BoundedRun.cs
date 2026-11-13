@@ -2,8 +2,10 @@ using System;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
+using System.Runtime.InteropServices;
 using System.Threading;
 using System.Threading.Tasks;
+using Microsoft.Win32.SafeHandles;
 
 public static class BoundedRun
 {
@@ -13,6 +15,7 @@ public static class BoundedRun
         public int ExitCode = -1;
         public double WallMs;
         public double CpuMs;
+        public bool Contained;
         public byte[] Output = new byte[0];
     }
 
@@ -35,10 +38,13 @@ public static class BoundedRun
         var result = new Result();
         var clock = Stopwatch.StartNew();
         Process process = null;
+        SafeFileHandle job = null;
         try
         {
             process = Process.Start(start);
             if (process == null) { result.Failure = "StartFailed"; return result; }
+            job = Contain(process);
+            result.Contained = job != null;
             process.StandardInput.Close();
             using var overLimit = new CancellationTokenSource();
             var consumed = 0;
@@ -72,9 +78,9 @@ public static class BoundedRun
 
             if (overLimit.IsCancellationRequested || !finished)
             {
-                KillTree(process);
-                try { Task.WhenAll(output, errors).Wait(5000); } catch (AggregateException) { }
                 result.Failure = overLimit.IsCancellationRequested ? "OutputTooLarge" : "Timeout";
+                Stop(process, job);
+                try { Task.WhenAll(output, errors).Wait(5000); } catch (AggregateException) { }
                 return result;
             }
 
@@ -91,18 +97,32 @@ public static class BoundedRun
         {
             if (process != null)
             {
-                KillTree(process);
+                if (result.Failure != "None") { Stop(process, job); }
                 clock.Stop();
                 result.WallMs = clock.Elapsed.TotalMilliseconds;
                 try { result.CpuMs = process.TotalProcessorTime.TotalMilliseconds; }
                 catch (Exception error) when (error is InvalidOperationException || error is System.ComponentModel.Win32Exception || error is NotSupportedException) { }
                 process.Dispose();
             }
+
+            job?.Dispose();
         }
     }
 
-    private static void KillTree(Process process)
+    // Membership passes to every process the child starts, so terminating the job also stops
+    // descendants whose parent has already exited, which a process-tree kill cannot reach.
+    private static SafeFileHandle Contain(Process process)
     {
+        var job = CreateJobObjectW(IntPtr.Zero, null);
+        if (job.IsInvalid) { job.Dispose(); return null; }
+        if (AssignProcessToJobObject(job, process.Handle)) { return job; }
+        job.Dispose();
+        return null;
+    }
+
+    private static void Stop(Process process, SafeFileHandle job)
+    {
+        if (job != null && !job.IsClosed) { TerminateJobObject(job, 1); }
         try
         {
             if (!process.HasExited)
@@ -116,4 +136,13 @@ public static class BoundedRun
         {
         }
     }
+
+    [DllImport("kernel32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
+    private static extern SafeFileHandle CreateJobObjectW(IntPtr attributes, string name);
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    private static extern bool AssignProcessToJobObject(SafeFileHandle job, IntPtr process);
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    private static extern bool TerminateJobObject(SafeFileHandle job, uint exitCode);
 }

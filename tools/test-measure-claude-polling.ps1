@@ -25,7 +25,8 @@ function Stop-Marked([string] $Marker) {
     foreach ($process in Get-MarkedProcesses $Marker) { Stop-Process -Id $process.ProcessId -Force -ErrorAction SilentlyContinue }
 }
 
-function New-Marker { 'measure-test-' + [guid]::NewGuid().ToString('N').Substring(0, 12) }
+$markers = [Collections.Generic.List[string]]::new()
+function New-Marker { $marker = 'measure-test-' + [guid]::NewGuid().ToString('N').Substring(0, 12); $markers.Add($marker); $marker }
 
 function Invoke-Script([hashtable] $Variables, [string[]] $Arguments) {
     $saved = @{}
@@ -48,6 +49,7 @@ try {
     $result = [BoundedRun]::Run($pwsh, @('-NoProfile', '-Command', $parent), $work, $noVariables, @(), 3000, 1048576)
     Start-Sleep -Milliseconds 500
     $left = @(Get-MarkedProcesses $marker).Count
+    Assert-Case 'exited parent: process was placed in a job' $result.Contained 'job assignment failed'
     Assert-Case 'exited parent: reported as Timeout' ($result.Failure -eq 'Timeout') "failure=$($result.Failure)"
     Assert-Case 'exited parent: child holding stdout is stopped' ($left -eq 0) "left=$left"
     Stop-Marked $marker
@@ -86,6 +88,7 @@ try {
         Assert-Case "interval $interval is refused" ($run.ExitCode -ne 0 -and $run.Output -match 'CandidateIntervalsSeconds') "exit=$($run.ExitCode)"
     }
 } finally {
+    foreach ($marker in $markers) { Stop-Marked $marker }
     Remove-Item -LiteralPath $work -Recurse -Force -ErrorAction SilentlyContinue
 }
 
