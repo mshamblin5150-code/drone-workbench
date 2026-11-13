@@ -79,6 +79,7 @@ $dotnet = & ./tools/bootstrap-dotnet.ps1
 In another terminal, as the same Windows user:
 
 ```powershell
+$dotnet = & ./tools/bootstrap-dotnet.ps1
 & $dotnet .local/publish/Cli/Workbench.Cli.dll sources --json
 ```
 
