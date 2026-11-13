@@ -11,19 +11,27 @@ public sealed class ReducerBenchmarks(ITestOutputHelper output)
     private const int HotItems = 200;
     private const int Warmup = 50;
     private const int AppliesPerRound = 200;
-    private const int Rounds = 3;
+    private const int WholeSourceReadsPerRound = 50;
+    private const int Rounds = 5;
+    private const int OneInEveryHundredTracked = 100;
 
     [Fact(Explicit = true)]
     public void ApplyCostFollowsTheBatchAndNotTheHistory()
     {
-        var workloads = new[] { Workload.Build(10_000), Workload.Build(100_000) };
+        Workload[] workloads =
+        [
+            Workload.Build(10_000, trackedEvery: null),
+            Workload.Build(100_000, trackedEvery: null),
+            Workload.Build(10_000, trackedEvery: OneInEveryHundredTracked),
+            Workload.Build(100_000, trackedEvery: OneInEveryHundredTracked),
+        ];
         foreach (var workload in workloads)
         {
-            output.WriteLine($"built {workload.Size} items: {workload.Ended} ended history, {HotItems} live in the hot source");
-            workload.Run(Warmup);
+            output.WriteLine($"built {workload.Name}: {workload.Ended} Ended and {workload.TrackedHistory} tracked Unknown history items, {HotItems} live in the hot source");
+            workload.Run(Warmup, Warmup / 5);
         }
 
-        var samples = workloads.ToDictionary(workload => workload.Size, _ => new List<Round>());
+        var samples = workloads.ToDictionary(workload => workload, _ => new List<Round>());
         for (var round = 1; round <= Rounds; round++)
         {
             foreach (var workload in workloads)
@@ -31,21 +39,34 @@ public sealed class ReducerBenchmarks(ITestOutputHelper output)
                 GC.Collect();
                 GC.WaitForPendingFinalizers();
                 GC.Collect();
-                var result = workload.Run(AppliesPerRound);
-                samples[workload.Size].Add(result);
+                var result = workload.Run(AppliesPerRound, WholeSourceReadsPerRound);
+                samples[workload].Add(result);
                 output.WriteLine(
-                    $"round {round} size {workload.Size,7}: apply median {result.ApplyMedianMicroseconds,7:F1} us p95 {result.ApplyP95Microseconds,7:F1} us; " +
-                    $"batch-to-projection-ready median {result.ReadyMedianMicroseconds,7:F1} us; allocated {result.BytesPerApply,6:N0} B/apply, " +
-                    $"{result.BytesPerReady,6:N0} B/apply+read; " +
-                    $"gen0 {result.Gen0Collections}; not applied {result.Failures}");
+                    $"round {round} {workload.Name,-17}: apply median {result.ApplyMedianMicroseconds,7:F1} us p95 {result.ApplyP95Microseconds,7:F1} us; " +
+                    $"apply+Find median {result.ReadyMedianMicroseconds,7:F1} us; apply+Work(source) median {result.WholeMedianMicroseconds,9:F1} us; " +
+                    $"allocated {result.BytesPerApply,4:N0} B/apply, {result.BytesPerReady,4:N0} B/apply+Find, {result.BytesPerWhole,12:N0} B/apply+Work; " +
+                    $"gen0 {result.Gen0Collections}; not applied or wrong {result.Failures}");
             }
         }
 
-        var small = Median(samples[10_000].Select(r => r.ApplyMedianMicroseconds));
-        var large = Median(samples[100_000].Select(r => r.ApplyMedianMicroseconds));
-        output.WriteLine($"median of round medians: 10k {small:F1} us, 100k {large:F1} us, ratio {large / small:F2} (rule: <= 3.00)");
+        double ApplyMedian(Workload workload) => Median(samples[workload].Select(result => result.ApplyMedianMicroseconds));
+        double WholeMedian(Workload workload) => Median(samples[workload].Select(result => result.WholeMedianMicroseconds));
+        string Compare(Func<Workload, double> metric, Workload small, Workload large) =>
+            $"10k {metric(small):F1} us, 100k {metric(large):F1} us, ratio {metric(large) / metric(small):F2}";
+
+        var (endedSmall, endedLarge, trackedSmall, trackedLarge) = (workloads[0], workloads[1], workloads[2], workloads[3]);
+        output.WriteLine($"apply, Ended-only history: {Compare(ApplyMedian, endedSmall, endedLarge)} (rule: <= 3.00)");
+        output.WriteLine(
+            $"apply, {trackedSmall.TrackedHistory} vs {trackedLarge.TrackedHistory} tracked Unknown history items: {Compare(ApplyMedian, trackedSmall, trackedLarge)} " +
+            "(reported, not gated: every complete poll revisits each tracked item it does not list)");
+        output.WriteLine(
+            $"apply+Work(source), Ended-only history: {Compare(WholeMedian, endedSmall, endedLarge)} " +
+            "(Work projects every record of the source, Ended history included, so it scales with total history)");
+        output.WriteLine($"apply+Work(source), tracked history: {Compare(WholeMedian, trackedSmall, trackedLarge)}");
         Assert.All(samples.Values.SelectMany(rounds => rounds), result => Assert.Equal(0, result.Failures));
-        Assert.True(large <= 3 * small, $"Apply cost grew with history: {large:F1} us at 100k against {small:F1} us at 10k.");
+        Assert.True(
+            ApplyMedian(endedLarge) <= 3 * ApplyMedian(endedSmall),
+            $"Apply cost grew with Ended history: {ApplyMedian(endedLarge):F1} us at 100k against {ApplyMedian(endedSmall):F1} us at 10k.");
     }
 
     private static double Median(IEnumerable<double> values)
@@ -57,7 +78,15 @@ public sealed class ReducerBenchmarks(ITestOutputHelper output)
     private static double Percentile(double[] sorted, double fraction) => sorted[(int)Math.Ceiling(fraction * sorted.Length) - 1];
 
     private sealed record Round(
-        double ApplyMedianMicroseconds, double ApplyP95Microseconds, double ReadyMedianMicroseconds, long BytesPerApply, long BytesPerReady, int Gen0Collections, int Failures);
+        double ApplyMedianMicroseconds,
+        double ApplyP95Microseconds,
+        double ReadyMedianMicroseconds,
+        double WholeMedianMicroseconds,
+        long BytesPerApply,
+        long BytesPerReady,
+        long BytesPerWhole,
+        int Gen0Collections,
+        int Failures);
 
     private sealed class Workload
     {
@@ -70,33 +99,43 @@ public sealed class ReducerBenchmarks(ITestOutputHelper output)
         private readonly ProcessIncarnation[] hotProcesses = [.. Enumerable.Range(0, HotItems).Select(i => new ProcessIncarnation(1_000 + i, Start.AddHours(-1)))];
         private bool busy;
 
-        private Workload(int size)
+        private Workload(int size, int? trackedEvery)
         {
             this.Size = size;
+            this.Name = $"{(trackedEvery is { } every ? $"{100.0 / every:0.#}% tracked" : "Ended-only")} {size / 1_000}k";
             this.ledger = new ActivityLedger(Settings, this.clock);
             this.generation = this.ledger.StartGeneration(Claude);
         }
 
         public int Size { get; }
 
+        public string Name { get; }
+
         public int Ended { get; private set; }
 
-        public static Workload Build(int size)
+        public int TrackedHistory { get; private set; }
+
+        public static Workload Build(int size, int? trackedEvery)
         {
-            var workload = new Workload(size);
+            var workload = new Workload(size, trackedEvery);
             var history = size - HotItems;
+            bool StaysTracked(int index) => trackedEvery is { } every && index % every == 0;
             for (var offset = 0; offset < history; offset += HistoryChunk)
             {
                 var chunk = Enumerable.Range(offset, Math.Min(HistoryChunk, history - offset)).ToArray();
                 workload.Poll(
-                    chunk.Select(i => ListedWork.Entry(Session($"old-{i:D6}"), Entrypoint.InteractiveCli, ListedStatus.Idle, incarnation: HistoryProcess(i))),
-                    chunk.Select(HistoryProcess));
+                    chunk.Select(i => StaysTracked(i)
+                        ? ListedWork.Entry(Session($"old-{i:D6}"), Entrypoint.InteractiveCli)
+                        : ListedWork.Entry(Session($"old-{i:D6}"), Entrypoint.InteractiveCli, ListedStatus.Idle, incarnation: HistoryProcess(i))),
+                    chunk.Where(i => !StaysTracked(i)).Select(HistoryProcess));
             }
 
             workload.Poll([], []);
             var views = workload.ledger.Work(Claude);
+            var expectedTracked = Enumerable.Range(0, history).Count(StaysTracked);
             workload.Ended = views.Count(view => view.State == WorkState.Ended);
-            if (views.Count != size || workload.Ended != history)
+            workload.TrackedHistory = views.Count - workload.Ended - HotItems;
+            if (views.Count != size || workload.TrackedHistory != expectedTracked || workload.Ended != history - expectedTracked)
             {
                 throw new InvalidOperationException("The workload did not build the intended projection.");
             }
@@ -104,12 +143,13 @@ public sealed class ReducerBenchmarks(ITestOutputHelper output)
             return workload;
         }
 
-        public Round Run(int applies)
+        public Round Run(int applies, int wholeSourceReads)
         {
-            var batches = new SafeSourceBatch[applies];
-            var expected = new WorkState[applies];
+            var total = applies + wholeSourceReads;
+            var batches = new SafeSourceBatch[total];
+            var expected = new WorkState[total];
             var start = this.clock.GetUtcNow();
-            for (var i = 0; i < applies; i++)
+            for (var i = 0; i < total; i++)
             {
                 this.busy = !this.busy;
                 expected[i] = this.busy ? WorkState.Busy : WorkState.Idle;
@@ -120,6 +160,8 @@ public sealed class ReducerBenchmarks(ITestOutputHelper output)
             var ready = new double[applies];
             var bytes = new long[applies];
             var readyBytes = new long[applies];
+            var whole = new double[wholeSourceReads];
+            var wholeBytes = new long[wholeSourceReads];
             var failures = 0;
             var gen0 = GC.CollectionCount(0);
             for (var i = 0; i < applies; i++)
@@ -141,16 +183,36 @@ public sealed class ReducerBenchmarks(ITestOutputHelper output)
                 }
             }
 
+            for (var i = 0; i < wholeSourceReads; i++)
+            {
+                this.clock.Advance(Settings.PollInterval);
+                var allocatedBefore = GC.GetAllocatedBytesForCurrentThread();
+                var began = Stopwatch.GetTimestamp();
+                var outcome = this.ledger.Apply(batches[applies + i]);
+                var views = this.ledger.Work(Claude);
+                var projected = Stopwatch.GetTimestamp();
+                wholeBytes[i] = GC.GetAllocatedBytesForCurrentThread() - allocatedBefore;
+                whole[i] = Stopwatch.GetElapsedTime(began, projected).TotalMicroseconds;
+                if (outcome != ApplyOutcome.Applied || views.Count != this.Size || this.ledger.Find(this.hot[HotItems - 1])?.State != expected[applies + i])
+                {
+                    failures++;
+                }
+            }
+
             Array.Sort(apply);
             Array.Sort(ready);
+            Array.Sort(whole);
             Array.Sort(bytes);
             Array.Sort(readyBytes);
+            Array.Sort(wholeBytes);
             return new Round(
                 Percentile(apply, 0.5),
                 Percentile(apply, 0.95),
                 Percentile(ready, 0.5),
+                Percentile(whole, 0.5),
                 bytes[applies / 2],
                 readyBytes[applies / 2],
+                wholeBytes[wholeSourceReads / 2],
                 GC.CollectionCount(0) - gen0,
                 failures);
         }
