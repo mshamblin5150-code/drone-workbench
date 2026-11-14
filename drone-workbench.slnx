@@ -10,5 +10,6 @@
     <Project Path="tests/Workbench.Host.Tests/Workbench.Host.Tests.csproj" />
     <Project Path="tests/Workbench.Cli.Tests/Workbench.Cli.Tests.csproj" />
     <Project Path="tests/Workbench.Supervisor.Tests/Workbench.Supervisor.Tests.csproj" />
+    <Project Path="tests/Workbench.TestSupport/Workbench.TestSupport.csproj" />
   </Folder>
 </Solution>

@@ -10,5 +10,6 @@
     <PackageReference Include="Microsoft.NET.Test.Sdk" />
     <PackageReference Include="BenchmarkDotNet" />
     <ProjectReference Include="../../src/Workbench.Core/Workbench.Core.csproj" />
+    <ProjectReference Include="../Workbench.TestSupport/Workbench.TestSupport.csproj" />
   </ItemGroup>
 </Project>
